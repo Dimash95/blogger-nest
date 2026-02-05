@@ -38,14 +38,14 @@ export class PostsController {
 
   @Put(':id')
   @HttpCode(204)
-  update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
-    return this.postsService.update(id, updatePostDto);
+  async update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
+    await this.postsService.update(id, updatePostDto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  remove(@Param('id') id: string) {
-    return this.postsService.remove(id);
+  async remove(@Param('id') id: string) {
+    await this.postsService.remove(id);
   }
 
   @Post(':postId/comments')

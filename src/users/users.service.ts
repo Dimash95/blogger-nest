@@ -90,7 +90,6 @@ export class UsersService {
         login: true,
         email: true,
         createdAt: true,
-        updatedAt: true,
       },
     });
   }
@@ -104,7 +103,6 @@ export class UsersService {
         login: true,
         email: true,
         createdAt: true,
-        updatedAt: true,
       },
     });
   }
