@@ -21,6 +21,7 @@ model User {
   password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  comments  Comment[]
 }
 
 model Blog {
@@ -41,4 +42,15 @@ model Post {
   blogId           String   @db.ObjectId
   blog             Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
   createdAt        DateTime @default(now())
+  comments         Comment[]
+}
+
+model Comment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String   @db.ObjectId
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }

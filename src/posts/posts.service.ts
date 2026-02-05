@@ -9,8 +9,25 @@ import { Paginator, PostViewModel } from './entities/post-paginator.entity';
 export class PostsService {
   constructor(private prisma: PrismaService) {}
 
+  private formatPostWithLikes(post: any): PostViewModel {
+    return {
+      id: post.id,
+      title: post.title,
+      shortDescription: post.shortDescription,
+      content: post.content,
+      blogId: post.blogId,
+      blogName: post.blog.name,
+      createdAt: post.createdAt,
+      extendedLikesInfo: {
+        likesCount: 0,
+        dislikesCount: 0,
+        myStatus: 'None',
+        newestLikes: [],
+      },
+    };
+  }
+
   async create(createPostDto: CreatePostDto) {
-    // Проверяем существование блога
     const blog = await this.prisma.blog.findUnique({
       where: { id: createPostDto.blogId },
     });
@@ -26,15 +43,7 @@ export class PostsService {
       },
     });
 
-    return {
-      id: post.id,
-      title: post.title,
-      shortDescription: post.shortDescription,
-      content: post.content,
-      blogId: post.blogId,
-      blogName: post.blog.name,
-      createdAt: post.createdAt,
-    };
+    return this.formatPostWithLikes(post);
   }
 
   async findAll(query: QueryPostsDto): Promise<Paginator<PostViewModel>> {
@@ -60,15 +69,7 @@ export class PostsService {
       page: pageNumber,
       pageSize,
       totalCount,
-      items: posts.map((post) => ({
-        id: post.id,
-        title: post.title,
-        shortDescription: post.shortDescription,
-        content: post.content,
-        blogId: post.blogId,
-        blogName: post.blog.name,
-        createdAt: post.createdAt,
-      })),
+      items: posts.map((post) => this.formatPostWithLikes(post)),
     };
   }
 
@@ -84,15 +85,7 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
-    return {
-      id: post.id,
-      title: post.title,
-      shortDescription: post.shortDescription,
-      content: post.content,
-      blogId: post.blogId,
-      blogName: post.blog.name,
-      createdAt: post.createdAt,
-    };
+    return this.formatPostWithLikes(post);
   }
 
   async update(id: string, updatePostDto: UpdatePostDto) {
@@ -120,15 +113,7 @@ export class PostsService {
       },
     });
 
-    return {
-      id: updatedPost.id,
-      title: updatedPost.title,
-      shortDescription: updatedPost.shortDescription,
-      content: updatedPost.content,
-      blogId: updatedPost.blogId,
-      blogName: updatedPost.blog.name,
-      createdAt: updatedPost.createdAt,
-    };
+    return this.formatPostWithLikes(updatedPost);
   }
 
   async remove(id: string) {

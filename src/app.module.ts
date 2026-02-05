@@ -6,9 +6,17 @@ import { TestingService } from './testing/testing.service';
 import { TestingModule } from '@nestjs/testing';
 import { BlogsModule } from './blogs/blogs.module';
 import { PostsModule } from './posts/posts.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
-  imports: [PrismaModule.forRoot(), UsersModule, TestingModule, BlogsModule, PostsModule],
+  imports: [
+    PrismaModule.forRoot(),
+    UsersModule,
+    TestingModule,
+    BlogsModule,
+    PostsModule,
+    CommentsModule,
+  ],
   controllers: [TestingController],
   providers: [TestingService],
 })

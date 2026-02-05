@@ -6,26 +6,21 @@ export class Paginator<T> {
   items: T[];
 }
 
-export class NewestLike {
-  addedAt: Date;
+export class CommentatorInfo {
   userId: string;
-  login: string;
+  userLogin: string;
 }
 
-export class ExtendedLikesInfo {
+export class LikesInfo {
   likesCount: number;
   dislikesCount: number;
   myStatus: string; // "None" | "Like" | "Dislike"
-  newestLikes: NewestLike[];
 }
 
-export class PostViewModel {
+export class CommentViewModel {
   id: string;
-  title: string;
-  shortDescription: string;
   content: string;
-  blogId: string;
-  blogName: string;
+  commentatorInfo: CommentatorInfo;
   createdAt: Date;
-  extendedLikesInfo: ExtendedLikesInfo;
+  likesInfo: LikesInfo;
 }
