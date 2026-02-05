@@ -4,9 +4,10 @@ import { UsersModule } from './users/users.module';
 import { TestingController } from './testing/testing.controller';
 import { TestingService } from './testing/testing.service';
 import { TestingModule } from '@nestjs/testing';
+import { BlogsModule } from './blogs/blogs.module';
 
 @Module({
-  imports: [PrismaModule.forRoot(), UsersModule, TestingModule],
+  imports: [PrismaModule.forRoot(), UsersModule, TestingModule, BlogsModule],
   controllers: [TestingController],
   providers: [TestingService],
 })

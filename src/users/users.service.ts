@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { QueryUsersDto } from './dto/query-users.dto';
+import { Paginator, UserViewModel } from './entities/paginator.entity';
 
 @Injectable()
 export class UsersService {
@@ -13,16 +15,65 @@ export class UsersService {
     });
   }
 
-  async findAll() {
-    return await this.prisma.user.findMany({
+  async findAll(query: QueryUsersDto): Promise<Paginator<UserViewModel>> {
+    const {
+      sortBy,
+      sortDirection,
+      pageNumber,
+      pageSize,
+      searchLoginTerm,
+      searchEmailTerm,
+    } = query;
+
+    // Используй any для orConditions
+    const orConditions: any[] = [];
+
+    if (searchLoginTerm) {
+      orConditions.push({
+        login: {
+          contains: searchLoginTerm,
+          mode: 'insensitive',
+        },
+      });
+    }
+
+    if (searchEmailTerm) {
+      orConditions.push({
+        email: {
+          contains: searchEmailTerm,
+          mode: 'insensitive',
+        },
+      });
+    }
+
+    const where: any = orConditions.length > 0 ? { OR: orConditions } : {};
+
+    const totalCount = await this.prisma.user.count({ where });
+
+    const users = await this.prisma.user.findMany({
+      where,
       select: {
         id: true,
         login: true,
         email: true,
         createdAt: true,
-        updatedAt: true,
       },
+      orderBy: {
+        [sortBy]: sortDirection,
+      },
+      skip: (pageNumber - 1) * pageSize,
+      take: pageSize,
     });
+
+    const pagesCount = Math.ceil(totalCount / pageSize);
+
+    return {
+      pagesCount,
+      page: pageNumber,
+      pageSize,
+      totalCount,
+      items: users,
+    };
   }
 
   async findOne(id: string) {
