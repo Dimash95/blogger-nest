@@ -51,13 +51,24 @@ export class PostsService {
 
     const totalCount = await this.prisma.post.count();
 
+    // Если сортировка по blogName - меняем на blog.name
+    let orderBy: any = {
+      [sortBy]: sortDirection,
+    };
+
+    if (sortBy === 'blogName') {
+      orderBy = {
+        blog: {
+          name: sortDirection,
+        },
+      };
+    }
+
     const posts = await this.prisma.post.findMany({
       include: {
         blog: true,
       },
-      orderBy: {
-        [sortBy]: sortDirection,
-      },
+      orderBy,
       skip: (pageNumber - 1) * pageSize,
       take: pageSize,
     });
