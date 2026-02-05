@@ -30,4 +30,15 @@ model Blog {
   websiteUrl  String
   createdAt   DateTime @default(now())
   isMembership Boolean @default(false)
+  posts        Post[]
+}
+
+model Post {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  shortDescription String
+  content          String
+  blogId           String   @db.ObjectId
+  blog             Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
 }
