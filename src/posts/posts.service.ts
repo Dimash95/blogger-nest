@@ -16,7 +16,7 @@ export class PostsService {
       shortDescription: post.shortDescription,
       content: post.content,
       blogId: post.blogId,
-      blogName: post.blog.name || '',
+      blogName: post.blog?.name || '',
       createdAt: post.createdAt,
       extendedLikesInfo: {
         likesCount: 0,
