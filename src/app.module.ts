@@ -1,18 +1,13 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
+import { TestingController } from './testing/testing.controller';
+import { TestingService } from './testing/testing.service';
+import { TestingModule } from '@nestjs/testing';
 
 @Module({
-  imports: [
-    PrismaModule.forRoot(),
-    UsersModule,
-    // MongooseModule.forRoot(
-    //   'mongodb+srv://admin:admin@blog.zgnruxj.mongodb.net/blog',
-    // ),
-  ],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [PrismaModule.forRoot(), UsersModule, TestingModule],
+  controllers: [TestingController],
+  providers: [TestingService],
 })
 export class AppModule {}
