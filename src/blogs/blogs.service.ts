@@ -121,6 +121,12 @@ export class BlogsService {
       blogId: post.blogId,
       blogName: post.blog.name,
       createdAt: post.createdAt,
+      extendedLikesInfo: {
+        likesCount: 0,
+        dislikesCount: 0,
+        myStatus: 'None',
+        newestLikes: [],
+      },
     };
   }
 

@@ -3,11 +3,11 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   HttpCode,
   Query,
+  Put,
 } from '@nestjs/common';
 import { BlogsService } from './blogs.service';
 import { CreateBlogDto } from './dto/create-blog.dto';
@@ -35,9 +35,10 @@ export class BlogsController {
     return this.blogsService.findOne(id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateBlogDto: UpdateBlogDto) {
-    return this.blogsService.update(id, updateBlogDto);
+  @Put(':id')
+  @HttpCode(204)
+  async update(@Param('id') id: string, @Body() updateBlogDto: UpdateBlogDto) {
+    await this.blogsService.update(id, updateBlogDto);
   }
 
   @Delete(':id')
