@@ -1,51 +1,52 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Blog, BlogDocument } from './blog.schema';
+import { Post, PostDocument } from '../posts/post.schema';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { QueryBlogsDto } from './dto/query-blogs.dto';
 import { BlogViewModel, Paginator } from './entities/blog-paginator.entity';
-import { QueryPostsDto } from 'src/posts/dto/query-posts.dto';
-import { PostViewModel } from 'src/posts/entities/post-paginator.entity';
-import { CreatePostForBlogDto } from 'src/posts/dto/create-post-for-blog.dto';
+import { QueryPostsDto } from '../posts/dto/query-posts.dto';
+import { PostViewModel } from '../posts/entities/post-paginator.entity';
+import { CreatePostForBlogDto } from '../posts/dto/create-post-for-blog.dto';
 
 @Injectable()
 export class BlogsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
+    @InjectModel(Post.name) private postModel: Model<PostDocument>,
+  ) {}
 
   async create(createBlogDto: CreateBlogDto) {
-    return await this.prisma.blog.create({
-      data: createBlogDto,
-    });
+    const blog = await this.blogModel.create(createBlogDto);
+
+    return {
+      id: blog._id.toString(),
+      name: blog.name,
+      description: blog.description,
+      websiteUrl: blog.websiteUrl,
+      createdAt: blog.createdAt,
+      isMembership: blog.isMembership,
+    };
   }
 
   async findAll(query: QueryBlogsDto): Promise<Paginator<BlogViewModel>> {
     const { searchNameTerm, sortBy, sortDirection, pageNumber, pageSize } =
       query;
 
-    // Построение фильтров поиска
-    const where: any = {};
+    const where = searchNameTerm
+      ? { name: { $regex: searchNameTerm, $options: 'i' } }
+      : {};
 
-    if (searchNameTerm) {
-      where.name = {
-        contains: searchNameTerm,
-        mode: 'insensitive',
-      };
-    }
+    const totalCount = await this.blogModel.countDocuments(where);
 
-    // Подсчет общего количества
-    const totalCount = await this.prisma.blog.count({ where });
+    const blogs = await this.blogModel
+      .find(where)
+      .sort({ [sortBy]: sortDirection === 'asc' ? 1 : -1 })
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize);
 
-    // Получение блогов с пагинацией
-    const blogs = await this.prisma.blog.findMany({
-      where,
-      orderBy: {
-        [sortBy]: sortDirection,
-      },
-      skip: (pageNumber - 1) * pageSize,
-      take: pageSize,
-    });
-
-    // Подсчет количества страниц
     const pagesCount = Math.ceil(totalCount / pageSize);
 
     return {
@@ -53,73 +54,84 @@ export class BlogsService {
       page: pageNumber,
       pageSize,
       totalCount,
-      items: blogs,
+      items: blogs.map((blog) => ({
+        id: blog._id.toString(),
+        name: blog.name,
+        description: blog.description,
+        websiteUrl: blog.websiteUrl,
+        createdAt: blog.createdAt,
+        isMembership: blog.isMembership,
+      })),
     };
   }
 
   async findOne(id: string) {
-    const blog = await this.prisma.blog.findUnique({
-      where: { id },
-    });
+    const blog = await this.blogModel.findById(id);
 
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
 
-    return blog;
+    return {
+      id: blog._id.toString(),
+      name: blog.name,
+      description: blog.description,
+      websiteUrl: blog.websiteUrl,
+      createdAt: blog.createdAt,
+      isMembership: blog.isMembership,
+    };
   }
 
   async update(id: string, updateBlogDto: UpdateBlogDto) {
-    const blog = await this.prisma.blog.findUnique({ where: { id } });
+    const blog = await this.blogModel.findById(id);
 
     if (!blog) {
       throw new NotFoundException('Blog not found');
     }
 
-    return this.prisma.blog.update({
-      where: { id },
-      data: updateBlogDto,
-    });
-  }
-
-  async remove(id: string) {
-    const blog = await this.prisma.blog.findUnique({ where: { id } });
-
-    if (!blog) {
-      throw new NotFoundException('Blog not found');
-    }
-
-    return this.prisma.blog.delete({
-      where: { id },
-    });
-  }
-
-  async createPostForBlog(blogId: string, createPostDto: CreatePostForBlogDto) {
-    const blog = await this.prisma.blog.findUnique({
-      where: { id: blogId },
-    });
-
-    if (!blog) {
-      throw new NotFoundException('Blog not found');
-    }
-
-    const post = await this.prisma.post.create({
-      data: {
-        ...createPostDto,
-        blogId,
-      },
-      include: {
-        blog: true,
-      },
+    const updated = await this.blogModel.findByIdAndUpdate(id, updateBlogDto, {
+      new: true,
     });
 
     return {
-      id: post.id,
+      id: updated!._id.toString(),
+      name: updated!.name,
+      description: updated?.description,
+      websiteUrl: updated?.websiteUrl,
+      createdAt: updated?.createdAt,
+      isMembership: updated?.isMembership,
+    };
+  }
+
+  async remove(id: string) {
+    const blog = await this.blogModel.findById(id);
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    await this.blogModel.findByIdAndDelete(id);
+  }
+
+  async createPostForBlog(blogId: string, createPostDto: CreatePostForBlogDto) {
+    const blog = await this.blogModel.findById(blogId);
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    const post = await this.postModel.create({
+      ...createPostDto,
+      blogId,
+    });
+
+    return {
+      id: post._id.toString(),
       title: post.title,
       shortDescription: post.shortDescription,
       content: post.content,
-      blogId: post.blogId,
-      blogName: post.blog.name,
+      blogId: blogId,
+      blogName: blog.name,
       createdAt: post.createdAt,
       extendedLikesInfo: {
         likesCount: 0,
@@ -134,9 +146,7 @@ export class BlogsService {
     blogId: string,
     query: QueryPostsDto,
   ): Promise<Paginator<PostViewModel>> {
-    const blog = await this.prisma.blog.findUnique({
-      where: { id: blogId },
-    });
+    const blog = await this.blogModel.findById(blogId);
 
     if (!blog) {
       throw new NotFoundException('Blog not found');
@@ -144,21 +154,13 @@ export class BlogsService {
 
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
 
-    const where = { blogId };
+    const totalCount = await this.postModel.countDocuments({ blogId });
 
-    const totalCount = await this.prisma.post.count({ where });
-
-    const posts = await this.prisma.post.findMany({
-      where,
-      include: {
-        blog: true,
-      },
-      orderBy: {
-        [sortBy]: sortDirection,
-      },
-      skip: (pageNumber - 1) * pageSize,
-      take: pageSize,
-    });
+    const posts = await this.postModel
+      .find({ blogId })
+      .sort({ [sortBy]: sortDirection === 'asc' ? 1 : -1 })
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize);
 
     const pagesCount = Math.ceil(totalCount / pageSize);
 
@@ -168,12 +170,12 @@ export class BlogsService {
       pageSize,
       totalCount,
       items: posts.map((post) => ({
-        id: post.id,
+        id: post._id.toString(),
         title: post.title,
         shortDescription: post.shortDescription,
         content: post.content,
-        blogId: post.blogId,
-        blogName: post.blog.name,
+        blogId: post.blogId.toString(),
+        blogName: blog.name,
         createdAt: post.createdAt,
         extendedLikesInfo: {
           likesCount: 0,

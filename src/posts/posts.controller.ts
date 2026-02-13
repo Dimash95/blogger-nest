@@ -13,13 +13,16 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { QueryPostsDto } from './dto/query-posts.dto';
-import { CreateCommentDto } from 'src/comments/dto/create-comment.dto';
-import { QueryCommentsDto } from 'src/comments/dto/query-comments.dto';
+import { CommentsService } from '../comments/comments.service';
+import { CreateCommentDto } from '../comments/dto/create-comment.dto';
+import { QueryCommentsDto } from '../comments/dto/query-comments.dto';
 
 @Controller('posts')
 export class PostsController {
-  commentsService: any;
-  constructor(private readonly postsService: PostsService) {}
+  constructor(
+    private readonly postsService: PostsService,
+    private readonly commentsService: CommentsService,
+  ) {}
 
   @Post()
   create(@Body() createPostDto: CreatePostDto) {
@@ -52,9 +55,8 @@ export class PostsController {
   createComment(
     @Param('postId') postId: string,
     @Body() createCommentDto: CreateCommentDto,
-    // TODO: Добавить получение userId из JWT токена
   ) {
-    const userId = 'temp-user-id'; // Временная заглушка
+    const userId = 'temp-user-id';
     return this.commentsService.create(postId, userId, createCommentDto);
   }
 

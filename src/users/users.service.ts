@@ -1,75 +1,61 @@
 import {
-  BadRequestException,
   Injectable,
+  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User, UserDocument } from './user.schema';
+import bcrypt from 'bcryptjs';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { Paginator, UserViewModel } from './entities/paginator.entity';
-import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
-  async create(dto: CreateUserDto) {
-    const { login, password, email } = dto;
+  async create(createUserDto: CreateUserDto) {
+    const { login, password, email } = createUserDto;
 
-    // Проверяем существование пользователя
-    const userByLogin = await this.prisma.user.findUnique({
-      where: { login },
-    });
+    const userByLogin = await this.userModel.findOne({ login });
+    const userByEmail = await this.userModel.findOne({ email });
 
     if (userByLogin) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'User with this login already exists',
-            field: 'login',
-          },
+          { message: 'User with this login already exists', field: 'login' },
         ],
       });
     }
-
-    const userByEmail = await this.prisma.user.findUnique({
-      where: { email },
-    });
 
     if (userByEmail) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'User with this email already exists',
-            field: 'email',
-          },
+          { message: 'User with this email already exists', field: 'email' },
         ],
       });
     }
 
-    // Хешируем пароль
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Создаем пользователя (без email confirmation - через admin)
-    const user = await this.prisma.user.create({
-      data: {
-        login,
-        password: hashedPassword,
-        email,
-        emailConfirmation: {
-          confirmationCode: '',
-          expirationDate: new Date(),
-          isConfirmed: true, // Сразу подтвержден
-        },
+    const newUser = await this.userModel.create({
+      login,
+      password: hashedPassword,
+      email,
+      emailConfirmation: {
+        confirmationCode: '',
+        expirationDate: new Date(),
+        isConfirmed: true, // Админ создаёт - сразу подтверждён
       },
     });
 
     return {
-      id: user.id,
-      login: user.login,
-      email: user.email,
-      createdAt: user.createdAt,
+      id: newUser._id.toString(),
+      login: newUser.login,
+      email: newUser.email,
+      createdAt: newUser.createdAt,
     };
   }
 
@@ -83,45 +69,29 @@ export class UsersService {
       searchEmailTerm,
     } = query;
 
-    // Используй any для orConditions
     const orConditions: any[] = [];
 
     if (searchLoginTerm) {
       orConditions.push({
-        login: {
-          contains: searchLoginTerm,
-          mode: 'insensitive',
-        },
+        login: { $regex: searchLoginTerm, $options: 'i' },
       });
     }
 
     if (searchEmailTerm) {
       orConditions.push({
-        email: {
-          contains: searchEmailTerm,
-          mode: 'insensitive',
-        },
+        email: { $regex: searchEmailTerm, $options: 'i' },
       });
     }
 
-    const where: any = orConditions.length > 0 ? { OR: orConditions } : {};
+    const where = orConditions.length > 0 ? { $or: orConditions } : {};
 
-    const totalCount = await this.prisma.user.count({ where });
+    const totalCount = await this.userModel.countDocuments(where);
 
-    const users = await this.prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        login: true,
-        email: true,
-        createdAt: true,
-      },
-      orderBy: {
-        [sortBy]: sortDirection,
-      },
-      skip: (pageNumber - 1) * pageSize,
-      take: pageSize,
-    });
+    const users = await this.userModel
+      .find(where)
+      .sort({ [sortBy]: sortDirection === 'asc' ? 1 : -1 })
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize);
 
     const pagesCount = Math.ceil(totalCount / pageSize);
 
@@ -130,44 +100,52 @@ export class UsersService {
       page: pageNumber,
       pageSize,
       totalCount,
-      items: users,
+      items: users.map((user) => ({
+        id: user._id.toString(),
+        login: user.login,
+        email: user.email,
+        createdAt: user.createdAt,
+      })),
     };
   }
 
   async findOne(id: string) {
-    return await this.prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        login: true,
-        email: true,
-        createdAt: true,
-      },
-    });
+    const user = await this.userModel.findById(id);
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user._id.toString(),
+      login: user.login,
+      email: user.email,
+      createdAt: user.createdAt,
+    };
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
-    return await this.prisma.user.update({
-      where: { id },
-      data: updateUserDto,
-      select: {
-        id: true,
-        login: true,
-        email: true,
-        createdAt: true,
-      },
+    const user = await this.userModel.findByIdAndUpdate(id, updateUserDto, {
+      new: true,
     });
-  }
-
-  async remove(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    return this.prisma.user.delete({
-      where: { id },
-    });
+    return {
+      id: user._id.toString(),
+      login: user.login,
+      email: user.email,
+      createdAt: user.createdAt,
+    };
+  }
+
+  async remove(id: string) {
+    const user = await this.userModel.findByIdAndDelete(id);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
   }
 }

@@ -3,8 +3,10 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcryptjs';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User, UserDocument } from '../users/user.schema';
+import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { EmailService } from '../email/email.service';
 import { CustomJwtService } from './jwt.service';
@@ -17,75 +19,49 @@ import { NewPasswordDto } from './dto/new-password.dto';
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private emailService: EmailService,
     private jwtService: CustomJwtService,
   ) {}
 
-  async registration(dto: RegistrationDto): Promise<any> {
+  async registration(dto: RegistrationDto): Promise<void> {
     const { login, password, email } = dto;
 
-    // Проверяем существование пользователя
-    const userByLogin = await this.prisma.user.findUnique({
-      where: { login },
-    });
+    const userByLogin = await this.userModel.findOne({ login });
+    const userByEmail = await this.userModel.findOne({ email });
 
     if (userByLogin) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'User with this login already exists',
-            field: 'login',
-          },
+          { message: 'User with this login already exists', field: 'login' },
         ],
       });
     }
-
-    const userByEmail = await this.prisma.user.findUnique({
-      where: { email },
-    });
 
     if (userByEmail) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'User with this email already exists',
-            field: 'email',
-          },
+          { message: 'User with this email already exists', field: 'email' },
         ],
       });
     }
 
-    // Хешируем пароль
     const hashedPassword = await bcrypt.hash(password, 10);
     const confirmationCode = randomUUID();
-
-    // Создаем дату истечения (через 1 час)
     const expirationDate = new Date();
     expirationDate.setHours(expirationDate.getHours() + 1);
 
-    // Создаем пользователя
-    const user = await this.prisma.user.create({
-      data: {
-        login,
-        password: hashedPassword,
-        email,
-        emailConfirmation: {
-          confirmationCode,
-          expirationDate,
-          isConfirmed: false,
-        },
+    await this.userModel.create({
+      login,
+      password: hashedPassword,
+      email,
+      emailConfirmation: {
+        confirmationCode,
+        expirationDate,
+        isConfirmed: false,
       },
     });
 
-    // 👇 ЛОГИ ДЛЯ ОТЛАДКИ
-    console.log('===============================');
-    console.log('EMAIL:', email);
-    console.log('CODE:', confirmationCode);
-    console.log('USER CREATED:', JSON.stringify(user, null, 2));
-    console.log('===============================');
-
-    // Отправляем email
     try {
       await this.emailService.sendRegistrationEmail(email, confirmationCode);
     } catch (error) {
@@ -96,245 +72,145 @@ export class AuthService {
   async registrationConfirmation(dto: ConfirmationCodeDto): Promise<void> {
     const { code } = dto;
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        emailConfirmation: {
-          is: {
-            confirmationCode: code,
-          },
-        },
-      },
+    const user = await this.userModel.findOne({
+      'emailConfirmation.confirmationCode': code,
     });
 
     if (!user) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'Confirmation code is incorrect',
-            field: 'code',
-          },
+          { message: 'Confirmation code is incorrect', field: 'code' },
         ],
       });
     }
 
-    // Проверяем срок действия
-    if (
-      user.emailConfirmation &&
-      user.emailConfirmation.expirationDate < new Date()
-    ) {
+    if (user.emailConfirmation.expirationDate < new Date()) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'Confirmation code expired',
-            field: 'code',
-          },
+          { message: 'Confirmation code expired', field: 'code' },
         ],
       });
     }
 
-    // Проверяем, не подтвержден ли уже
-    if (user.emailConfirmation?.isConfirmed) {
+    if (user.emailConfirmation.isConfirmed) {
       throw new BadRequestException({
-        errorsMessages: [
-          {
-            message: 'Email already confirmed',
-            field: 'code',
-          },
-        ],
+        errorsMessages: [{ message: 'Email already confirmed', field: 'code' }],
       });
     }
 
-    // Подтверждаем email
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailConfirmation: {
-          set: {
-            confirmationCode: user.emailConfirmation!.confirmationCode,
-            expirationDate: user.emailConfirmation!.expirationDate,
-            isConfirmed: true,
-            recoveryCode: user.emailConfirmation!.recoveryCode,
-          },
-        },
-      },
-    });
+    user.emailConfirmation.isConfirmed = true;
+    await user.save();
   }
 
   async registrationEmailResending(dto: EmailDto): Promise<void> {
     const { email } = dto;
 
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await this.userModel.findOne({ email });
 
     if (!user) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'User with this email not found',
-            field: 'email',
-          },
+          { message: 'User with this email not found', field: 'email' },
         ],
       });
     }
 
-    // Проверяем, не подтвержден ли уже
-    if (user.emailConfirmation?.isConfirmed) {
+    if (user.emailConfirmation.isConfirmed) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'Email already confirmed',
-            field: 'email',
-          },
+          { message: 'Email already confirmed', field: 'email' },
         ],
       });
     }
 
-    // Генерируем новый код
     const newConfirmationCode = randomUUID();
     const expirationDate = new Date();
     expirationDate.setHours(expirationDate.getHours() + 1);
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailConfirmation: {
-          set: {
-            confirmationCode: newConfirmationCode,
-            expirationDate,
-            isConfirmed: user.emailConfirmation?.isConfirmed || false,
-            recoveryCode: user.emailConfirmation?.recoveryCode || null,
-          },
-        },
-      },
-    });
+    user.emailConfirmation.confirmationCode = newConfirmationCode;
+    user.emailConfirmation.expirationDate = expirationDate;
+    await user.save();
 
     await this.emailService.sendRegistrationEmail(email, newConfirmationCode);
   }
 
-  async login(
-    dto: LoginDto,
-    ip: string,
-    userAgent: string,
-  ): Promise<{ accessToken: string }> {
+  async login(dto: LoginDto, ip: string, userAgent: string) {
     const { loginOrEmail, password } = dto;
 
-    // Ищем пользователя по login или email
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ login: loginOrEmail }, { email: loginOrEmail }],
-      },
+    const user = await this.userModel.findOne({
+      $or: [{ login: loginOrEmail }, { email: loginOrEmail }],
     });
 
     if (!user) {
       throw new UnauthorizedException({
         errorsMessages: [
-          {
-            message: 'Invalid credentials',
-            field: 'loginOrEmail',
-          },
+          { message: 'Invalid credentials', field: 'loginOrEmail' },
         ],
       });
     }
 
-    // Проверяем пароль
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException({
-        errorsMessages: [
-          {
-            message: 'Invalid credentials',
-            field: 'password',
-          },
-        ],
+        errorsMessages: [{ message: 'Invalid credentials', field: 'password' }],
       });
     }
 
-    // Проверяем подтверждение email
     if (!user.emailConfirmation?.isConfirmed) {
       throw new UnauthorizedException({
-        errorsMessages: [
-          {
-            message: 'Email not confirmed',
-            field: 'email',
-          },
-        ],
+        errorsMessages: [{ message: 'Email not confirmed', field: 'email' }],
       });
     }
 
-    // Создаем устройство
     const deviceId = randomUUID();
-    const newDevice = {
-      ip,
-      title: userAgent,
-      lastActiveDate: new Date(),
-      deviceId,
-    };
-
-    // Генерируем токены
     const accessToken = this.jwtService.generateAccessToken(
-      user.id,
+      user._id.toString(),
       user.login,
     );
-
     const {
       token: refreshToken,
       tokenId,
       expiresAt,
-    } = this.jwtService.generateRefreshToken(user.id, user.login, deviceId);
+    } = this.jwtService.generateRefreshToken(
+      user._id.toString(),
+      user.login,
+      deviceId,
+    );
 
-    // Обновляем пользователя
-    // Обновляем пользователя
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        devices: [...(user.devices || []), newDevice],
-        refreshTokens: [
-          ...(user.refreshTokens || []),
-          {
-            token: refreshToken, // <- это полный токен
-            tokenId: tokenId, // <- это ID токена
-            deviceId,
-            isValid: true,
-            createdAt: new Date(),
-            expiresAt,
-          },
-        ],
-      },
+    user.devices.push({
+      ip,
+      title: userAgent,
+      lastActiveDate: new Date(),
+      deviceId,
     });
+
+    user.refreshTokens.push({
+      token: refreshToken,
+      tokenId,
+      deviceId,
+      isValid: true,
+      createdAt: new Date(),
+      expiresAt,
+    });
+
+    await user.save();
 
     return { accessToken };
   }
 
   async passwordRecovery(dto: EmailDto): Promise<void> {
     const { email } = dto;
+    const user = await this.userModel.findOne({ email });
 
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
-    // Не раскрываем информацию о существовании email
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
     const recoveryCode = randomUUID();
     const expirationDate = new Date();
     expirationDate.setHours(expirationDate.getHours() + 1);
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailConfirmation: {
-          set: {
-            confirmationCode: user.emailConfirmation!.confirmationCode,
-            expirationDate,
-            isConfirmed: user.emailConfirmation!.isConfirmed,
-            recoveryCode,
-          },
-        },
-      },
-    });
+    user.emailConfirmation.recoveryCode = recoveryCode;
+    user.emailConfirmation.expirationDate = expirationDate;
+    await user.save();
 
     try {
       await this.emailService.sendPasswordRecovery(email, recoveryCode);
@@ -346,78 +222,43 @@ export class AuthService {
   async newPassword(dto: NewPasswordDto): Promise<void> {
     const { newPassword, recoveryCode } = dto;
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        emailConfirmation: {
-          is: {
-            recoveryCode: recoveryCode,
-          },
-        },
-      },
+    const user = await this.userModel.findOne({
+      'emailConfirmation.recoveryCode': recoveryCode,
     });
 
     if (!user) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'Confirmation code is incorrect',
-            field: 'recoveryCode',
-          },
+          { message: 'Confirmation code is incorrect', field: 'recoveryCode' },
         ],
       });
     }
 
-    // Проверяем срок действия
-    if (
-      user.emailConfirmation &&
-      user.emailConfirmation.expirationDate < new Date()
-    ) {
+    if (user.emailConfirmation.expirationDate < new Date()) {
       throw new BadRequestException({
         errorsMessages: [
-          {
-            message: 'Confirmation code expired',
-            field: 'recoveryCode',
-          },
+          { message: 'Confirmation code expired', field: 'recoveryCode' },
         ],
       });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        emailConfirmation: {
-          set: {
-            confirmationCode: user.emailConfirmation!.confirmationCode,
-            expirationDate: user.emailConfirmation!.expirationDate,
-            isConfirmed: true,
-            recoveryCode: user.emailConfirmation!.recoveryCode,
-          },
-        },
-      },
-    });
+    user.password = hashedPassword;
+    user.emailConfirmation.isConfirmed = true;
+    await user.save();
   }
 
   async getMe(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await this.userModel.findById(userId);
 
     if (!user) {
       throw new UnauthorizedException({
-        errorsMessages: [
-          {
-            message: 'User not found',
-            field: 'userId',
-          },
-        ],
+        errorsMessages: [{ message: 'User not found', field: 'userId' }],
       });
     }
 
     return {
-      userId: user.id,
+      userId: user._id.toString(),
       login: user.login,
       email: user.email,
     };

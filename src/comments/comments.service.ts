@@ -3,7 +3,11 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Comment, CommentDocument } from './comment.schema';
+import { Post, PostDocument } from '../posts/post.schema';
+import { User, UserDocument } from '../users/user.schema';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { QueryCommentsDto } from './dto/query-comments.dto';
@@ -14,38 +18,37 @@ import {
 
 @Injectable()
 export class CommentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
+    @InjectModel(Post.name) private postModel: Model<PostDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+  ) {}
 
   async create(
     postId: string,
     userId: string,
     createCommentDto: CreateCommentDto,
   ) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-    });
+    const post = await this.postModel.findById(postId);
 
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
-    const comment = await this.prisma.comment.create({
-      data: {
-        content: createCommentDto.content,
-        userId,
-        postId,
-      },
-      include: {
-        user: true,
-      },
+    const comment = await this.commentModel.create({
+      content: createCommentDto.content,
+      userId,
+      postId,
     });
 
+    const user = await this.userModel.findById(userId);
+
     return {
-      id: comment.id,
+      id: comment._id.toString(),
       content: comment.content,
       commentatorInfo: {
-        userId: comment.userId,
-        userLogin: comment.user.login,
+        userId: userId,
+        userLogin: user!.login,
       },
       createdAt: comment.createdAt,
       likesInfo: {
@@ -60,9 +63,7 @@ export class CommentsService {
     postId: string,
     query: QueryCommentsDto,
   ): Promise<Paginator<CommentViewModel>> {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-    });
+    const post = await this.postModel.findById(postId);
 
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -70,21 +71,14 @@ export class CommentsService {
 
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
 
-    const where = { postId };
+    const totalCount = await this.commentModel.countDocuments({ postId });
 
-    const totalCount = await this.prisma.comment.count({ where });
-
-    const comments = await this.prisma.comment.findMany({
-      where,
-      include: {
-        user: true,
-      },
-      orderBy: {
-        [sortBy]: sortDirection,
-      },
-      skip: (pageNumber - 1) * pageSize,
-      take: pageSize,
-    });
+    const comments = await this.commentModel
+      .find({ postId })
+      .sort({ [sortBy]: sortDirection === 'asc' ? 1 : -1 })
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize)
+      .populate('userId', 'login');
 
     const pagesCount = Math.ceil(totalCount / pageSize);
 
@@ -93,41 +87,43 @@ export class CommentsService {
       page: pageNumber,
       pageSize,
       totalCount,
-      items: comments.map((comment) => ({
-        id: comment.id,
-        content: comment.content,
-        commentatorInfo: {
-          userId: comment.userId,
-          userLogin: comment.user.login,
-        },
-        createdAt: comment.createdAt,
-        likesInfo: {
-          likesCount: 0,
-          dislikesCount: 0,
-          myStatus: 'None',
-        },
-      })),
+      items: await Promise.all(
+        comments.map(async (comment) => {
+          const user = await this.userModel.findById(comment.userId);
+          return {
+            id: comment._id.toString(),
+            content: comment.content,
+            commentatorInfo: {
+              userId: comment.userId.toString(),
+              userLogin: user!.login,
+            },
+            createdAt: comment.createdAt,
+            likesInfo: {
+              likesCount: 0,
+              dislikesCount: 0,
+              myStatus: 'None',
+            },
+          };
+        }),
+      ),
     };
   }
 
   async findOne(id: string) {
-    const comment = await this.prisma.comment.findUnique({
-      where: { id },
-      include: {
-        user: true,
-      },
-    });
+    const comment = await this.commentModel.findById(id);
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
     }
 
+    const user = await this.userModel.findById(comment.userId);
+
     return {
-      id: comment.id,
+      id: comment._id.toString(),
       content: comment.content,
       commentatorInfo: {
-        userId: comment.userId,
-        userLogin: comment.user.login,
+        userId: comment.userId.toString(),
+        userLogin: user!.login,
       },
       createdAt: comment.createdAt,
       likesInfo: {
@@ -139,34 +135,37 @@ export class CommentsService {
   }
 
   async update(id: string, userId: string, updateCommentDto: UpdateCommentDto) {
-    const comment = await this.prisma.comment.findUnique({
-      where: { id },
-    });
+    const comment = await this.commentModel.findById(id);
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
     }
 
-    if (comment.userId !== userId) {
+    if (comment.userId.toString() !== userId) {
       throw new ForbiddenException('You can only edit your own comments');
     }
 
-    const updatedComment = await this.prisma.comment.update({
-      where: { id },
-      data: updateCommentDto,
-      include: {
-        user: true,
-      },
-    });
+    // 👇 Используй findByIdAndUpdate
+    const updatedComment = await this.commentModel.findByIdAndUpdate(
+      id,
+      { content: updateCommentDto.content },
+      { new: true },
+    );
+
+    const user = await this.userModel.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
     return {
-      id: updatedComment.id,
-      content: updatedComment.content,
+      id: updatedComment!._id.toString(),
+      content: updatedComment!.content,
       commentatorInfo: {
-        userId: updatedComment.userId,
-        userLogin: updatedComment.user.login,
+        userId: userId,
+        userLogin: user.login,
       },
-      createdAt: updatedComment.createdAt,
+      createdAt: updatedComment!.createdAt,
       likesInfo: {
         likesCount: 0,
         dislikesCount: 0,
@@ -176,20 +175,16 @@ export class CommentsService {
   }
 
   async remove(id: string, userId: string) {
-    const comment = await this.prisma.comment.findUnique({
-      where: { id },
-    });
+    const comment = await this.commentModel.findById(id);
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
     }
 
-    if (comment.userId !== userId) {
+    if (comment.userId.toString() !== userId) {
       throw new ForbiddenException('You can only delete your own comments');
     }
 
-    return this.prisma.comment.delete({
-      where: { id },
-    });
+    await this.commentModel.findByIdAndDelete(id);
   }
 }
