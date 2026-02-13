@@ -16,35 +16,35 @@ import { ConfirmationCodeDto } from './dto/confirmation-code.dto';
 import { EmailDto } from './dto/email.dto';
 import { NewPasswordDto } from './dto/new-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { Throttle } from '@nestjs/throttler';
+// import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('registration')
-  @Throttle({ default: { limit: 5, ttl: 10000 } }) // 5 запросов за 10 секунд
+  // @Throttle({ default: { limit: 5, ttl: 10000 } }) // 5 запросов за 10 секунд
   @HttpCode(HttpStatus.NO_CONTENT)
   async registration(@Body() dto: RegistrationDto) {
     return this.authService.registration(dto);
   }
 
   @Post('registration-confirmation')
-  @Throttle({ default: { limit: 5, ttl: 10000 } })
+  // @Throttle({ default: { limit: 5, ttl: 10000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   async registrationConfirmation(@Body() dto: ConfirmationCodeDto) {
     return this.authService.registrationConfirmation(dto);
   }
 
   @Post('registration-email-resending')
-  @Throttle({ default: { limit: 5, ttl: 10000 } })
+  // @Throttle({ default: { limit: 5, ttl: 10000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   async registrationEmailResending(@Body() dto: EmailDto) {
     return this.authService.registrationEmailResending(dto);
   }
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 10000 } })
+  // @Throttle({ default: { limit: 5, ttl: 10000 } })
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ip = req.ip || 'unknown';
@@ -53,14 +53,14 @@ export class AuthController {
   }
 
   @Post('password-recovery')
-  @Throttle({ default: { limit: 5, ttl: 10000 } })
+  // @Throttle({ default: { limit: 5, ttl: 10000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   async passwordRecovery(@Body() dto: EmailDto) {
     return this.authService.passwordRecovery(dto);
   }
 
   @Post('new-password')
-  @Throttle({ default: { limit: 5, ttl: 10000 } })
+  // @Throttle({ default: { limit: 5, ttl: 10000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   async newPassword(@Body() dto: NewPasswordDto) {
     return this.authService.newPassword(dto);

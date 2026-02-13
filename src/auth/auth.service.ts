@@ -192,9 +192,12 @@ export class AuthService {
       where: { id: user.id },
       data: {
         emailConfirmation: {
-          ...user.emailConfirmation,
-          confirmationCode: newConfirmationCode,
-          expirationDate,
+          set: {
+            confirmationCode: newConfirmationCode,
+            expirationDate,
+            isConfirmed: user.emailConfirmation!.isConfirmed,
+            recoveryCode: user.emailConfirmation!.recoveryCode || null, // <- FIX
+          },
         },
       },
     });

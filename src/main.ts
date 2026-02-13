@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,6 +10,15 @@ async function bootstrap() {
       whitelist: true, // удаляет лишние поля
       forbidNonWhitelisted: true, // выдает ошибку если есть лишние поля
       transform: true, // автоматически трансформирует типы
+      exceptionFactory: (errors) => {
+        const errorsMessages = errors.map((error) => ({
+          message:
+            Object.values(error.constraints || {})[0] || 'Validation error',
+          field: error.property,
+        }));
+
+        return new BadRequestException({ errorsMessages });
+      },
     }),
   );
   await app.listen(process.env.PORT ?? 3000);
