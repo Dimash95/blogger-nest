@@ -21,7 +21,33 @@ model User {
   password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  emailConfirmation EmailConfirmation?
+  devices       Device[]
+  refreshTokens RefreshToken[]
   comments  Comment[]
+}
+
+type EmailConfirmation {
+  confirmationCode String
+  expirationDate   DateTime
+  isConfirmed      Boolean  @default(false)
+  recoveryCode     String?
+}
+
+type Device {
+  deviceId       String
+  ip             String
+  title          String
+  lastActiveDate DateTime
+}
+
+type RefreshToken {
+  token     String
+  tokenId   String
+  deviceId  String
+  isValid   Boolean  @default(true)
+  createdAt DateTime
+  expiresAt DateTime
 }
 
 model Blog {

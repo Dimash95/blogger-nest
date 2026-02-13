@@ -1,24 +1,76 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { Paginator, UserViewModel } from './entities/paginator.entity';
+import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createUserDto: CreateUserDto) {
-    return await this.prisma.user.create({
-      data: createUserDto,
-      select: {
-        id: true,
-        login: true,
-        email: true,
-        createdAt: true,
+  async create(dto: CreateUserDto) {
+    const { login, password, email } = dto;
+
+    // Проверяем существование пользователя
+    const userByLogin = await this.prisma.user.findUnique({
+      where: { login },
+    });
+
+    if (userByLogin) {
+      throw new BadRequestException({
+        errorsMessages: [
+          {
+            message: 'User with this login already exists',
+            field: 'login',
+          },
+        ],
+      });
+    }
+
+    const userByEmail = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (userByEmail) {
+      throw new BadRequestException({
+        errorsMessages: [
+          {
+            message: 'User with this email already exists',
+            field: 'email',
+          },
+        ],
+      });
+    }
+
+    // Хешируем пароль
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Создаем пользователя (без email confirmation - через admin)
+    const user = await this.prisma.user.create({
+      data: {
+        login,
+        password: hashedPassword,
+        email,
+        emailConfirmation: {
+          confirmationCode: '',
+          expirationDate: new Date(),
+          isConfirmed: true, // Сразу подтвержден
+        },
       },
     });
+
+    return {
+      id: user.id,
+      login: user.login,
+      email: user.email,
+      createdAt: user.createdAt,
+    };
   }
 
   async findAll(query: QueryUsersDto): Promise<Paginator<UserViewModel>> {
