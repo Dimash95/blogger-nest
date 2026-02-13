@@ -65,7 +65,7 @@ export class AuthService {
     expirationDate.setHours(expirationDate.getHours() + 1);
 
     // Создаем пользователя
-    await this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         login,
         password: hashedPassword,
@@ -78,7 +78,12 @@ export class AuthService {
       },
     });
 
-    console.log('✅ Created user with code:', confirmationCode);
+    // 👇 ЛОГИ ДЛЯ ОТЛАДКИ
+    console.log('===============================');
+    console.log('EMAIL:', email);
+    console.log('CODE:', confirmationCode);
+    console.log('USER CREATED:', JSON.stringify(user, null, 2));
+    console.log('===============================');
 
     // Отправляем email
     try {
