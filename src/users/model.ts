@@ -35,6 +35,7 @@ const UserSchema = new mongoose.Schema(
     devices: { type: [DeviceSchema], default: [] },
   },
   {
+    collection: 'User',
     versionKey: false,
     toJSON: {
       transform(doc, ret: any) {
