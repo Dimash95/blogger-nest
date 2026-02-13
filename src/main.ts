@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import mongoose from 'mongoose';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // app.setGlobalPrefix('api');
+  await mongoose.connect(process.env.DATABASE_URL!);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // удаляет лишние поля
