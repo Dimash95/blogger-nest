@@ -8,6 +8,7 @@ import { CommentsModule } from './comments/comments.module';
 import { TestingModule } from './testing/testing.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
+import { MongooseModule } from '@nestjs/mongoose';
 // import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 // import { APP_GUARD } from '@nestjs/core';
 
@@ -16,6 +17,7 @@ import { EmailModule } from './email/email.module';
     ConfigModule.forRoot({
       isGlobal: true, // делаем ConfigModule глобальным
     }),
+    MongooseModule.forRoot(process.env.DATABASE_URL!),
     // ThrottlerModule.forRoot([
     //   {
     //     ttl: 10000, // 10 секунд
