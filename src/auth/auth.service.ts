@@ -22,7 +22,7 @@ export class AuthService {
     private jwtService: CustomJwtService,
   ) {}
 
-  async registration(dto: RegistrationDto): Promise<void> {
+  async registration(dto: RegistrationDto): Promise<any> {
     const { login, password, email } = dto;
 
     // Проверяем существование пользователя
@@ -77,6 +77,8 @@ export class AuthService {
         },
       },
     });
+
+    console.log('✅ Created user with code:', confirmationCode);
 
     // Отправляем email
     try {
@@ -195,8 +197,8 @@ export class AuthService {
           set: {
             confirmationCode: newConfirmationCode,
             expirationDate,
-            isConfirmed: user.emailConfirmation!.isConfirmed,
-            recoveryCode: user.emailConfirmation!.recoveryCode || null, // <- FIX
+            isConfirmed: user.emailConfirmation?.isConfirmed || false,
+            recoveryCode: user.emailConfirmation?.recoveryCode || null,
           },
         },
       },
