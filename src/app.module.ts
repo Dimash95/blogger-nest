@@ -12,15 +12,13 @@ import { MailerModule } from '@nestjs-modules/mailer';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRoot(process.env.DATABASE_URL!),
     MailerModule.forRoot({
       transport: {
         host: 'smtp.gmail.com',
-        port: 465, // 👈 Измени на 465
-        secure: true, // 👈 Измени на true
+        port: 465,
+        secure: true,
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,

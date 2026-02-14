@@ -6,8 +6,10 @@ export class EmailService {
   constructor(private mailerService: MailerService) {}
 
   async sendRegistrationEmail(email: string, code: string): Promise<void> {
+    const startTime = Date.now();
     try {
       await this.mailerService.sendMail({
+        from: `No Reply <${process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Registration',
         html: `<h1>Thank for your registration</h1>
@@ -15,6 +17,8 @@ export class EmailService {
             <a href='https://somesite.com/confirm-email?code=${code}'>complete registration</a>
           </p>`,
       });
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Email sent in ${elapsed}ms`);
     } catch (error) {
       console.error('Email sending failed:', error);
     }
@@ -23,6 +27,7 @@ export class EmailService {
   async sendPasswordRecovery(email: string, code: string): Promise<void> {
     try {
       await this.mailerService.sendMail({
+        from: `No Reply <${process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Recovery Password',
         html: `<h1>Password recovery</h1>

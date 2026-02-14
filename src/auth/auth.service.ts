@@ -62,11 +62,7 @@ export class AuthService {
       },
     });
 
-    try {
-      await this.emailService.sendRegistrationEmail(email, confirmationCode);
-    } catch (error) {
-      console.error('Email sending failed:', error);
-    }
+    this.emailService.sendRegistrationEmail(email, confirmationCode);
   }
 
   async registrationConfirmation(dto: ConfirmationCodeDto): Promise<void> {
@@ -131,7 +127,7 @@ export class AuthService {
     user.emailConfirmation.expirationDate = expirationDate;
     await user.save();
 
-    await this.emailService.sendRegistrationEmail(email, newConfirmationCode);
+    this.emailService.sendRegistrationEmail(email, newConfirmationCode);
   }
 
   async login(dto: LoginDto, ip: string, userAgent: string) {
@@ -212,11 +208,7 @@ export class AuthService {
     user.emailConfirmation.expirationDate = expirationDate;
     await user.save();
 
-    try {
-      await this.emailService.sendPasswordRecovery(email, recoveryCode);
-    } catch (error) {
-      console.error('Email sending failed:', error);
-    }
+    this.emailService.sendPasswordRecovery(email, recoveryCode);
   }
 
   async newPassword(dto: NewPasswordDto): Promise<void> {
