@@ -9,6 +9,7 @@ import {
   Query,
   Put,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { BlogsService } from './blogs.service';
@@ -75,7 +76,9 @@ export class BlogsController {
   findPostsForBlog(
     @Param('blogId') blogId: string,
     @Query() query: QueryPostsDto,
+    @Req() req: Request & { user?: { userId: string } },
   ) {
-    return this.blogsService.findPostsForBlog(blogId, query);
+    const userId = req.user?.userId;
+    return this.blogsService.findPostsForBlog(blogId, query, userId);
   }
 }

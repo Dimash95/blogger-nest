@@ -88,7 +88,7 @@ export class PostsController {
     return this.commandBus.execute(new DeletePostCommand(id));
   }
 
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Post(':postId/comments')
   createComment(
     @Param('postId') postId: string,
@@ -107,9 +107,10 @@ export class PostsController {
   findCommentsForPost(
     @Param('postId') postId: string,
     @Query() query: QueryCommentsDto,
+    @Req() req: Request & { user?: { userId: string } },
   ) {
-    // ↓ НЕ ИЗМЕНИЛОСЬ
-    return this.commentsService.findCommentsForPost(postId, query);
+    const userId = req.user?.userId;
+    return this.commentsService.findCommentsForPost(postId, query, userId);
   }
 
   @UseGuards(JwtAuthGuard)

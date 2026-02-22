@@ -34,12 +34,15 @@ export class CommentsController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    // ↓ НЕ ИЗМЕНИЛОСЬ: query остаётся в сервисе
-    return this.commentsService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { userId: string } },
+  ) {
+    const userId = req.user?.userId;
+    return this.commentsService.findOne(id, userId);
   }
 
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Put(':id')
   @HttpCode(204)
   update(
@@ -52,7 +55,7 @@ export class CommentsController {
     return this.commandBus.execute(new UpdateCommentCommand(id, userId, dto));
   }
 
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @HttpCode(204)
   remove(
