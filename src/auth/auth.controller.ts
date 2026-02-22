@@ -20,7 +20,7 @@ import { LoginDto } from './dto/login.dto';
 import { ConfirmationCodeDto } from './dto/confirmation-code.dto';
 import { EmailDto } from './dto/email.dto';
 import { NewPasswordDto } from './dto/new-password.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -92,7 +92,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async getMe(@Req() req: Request & { user: { userId: string } }) {
     // ↓ НЕ ИЗМЕНИЛОСЬ

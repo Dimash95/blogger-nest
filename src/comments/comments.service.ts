@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Comment, CommentDocument } from './comment.schema';
+import { Comment, CommentDocument, CommentLike } from './comment.schema';
 import { Post, PostDocument } from '../posts/post.schema';
 import { User, UserDocument } from '../users/user.schema';
 // ↓ УДАЛЕНО: CreateCommentDto, UpdateCommentDto — больше не нужны в сервисе
@@ -19,19 +19,25 @@ export class CommentsService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
-  // ↓ УДАЛЕНО: метод create — переехал в CreateCommentUseCase
+  private formatLikesInfo(likes: CommentLike[], userId?: string) {
+    const likesCount = likes.filter((l) => l.status === 'Like').length;
+    const dislikesCount = likes.filter((l) => l.status === 'Dislike').length;
+    const myStatus = userId
+      ? likes.find((l) => l.userId === userId)?.status || 'None'
+      : 'None';
 
-  // ↓ НЕ ИЗМЕНИЛОСЬ: query остаётся в сервисе
+    return { likesCount, dislikesCount, myStatus };
+  }
+
   async findCommentsForPost(
     postId: string,
     query: QueryCommentsDto,
+    userId?: string,
   ): Promise<Paginator<CommentViewModel>> {
     const post = await this.postModel.findById(postId);
-
     if (!post) throw new NotFoundException('Post not found');
 
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
-
     const totalCount = await this.commentModel.countDocuments({ postId });
     const pagesCount = Math.ceil(totalCount / pageSize);
 
@@ -49,6 +55,9 @@ export class CommentsService {
       items: await Promise.all(
         comments.map(async (comment) => {
           const user = await this.userModel.findById(comment.userId);
+          // ↓ ИЗМЕНЕНО: считаем лайки
+          const likesInfo = this.formatLikesInfo(comment.likes || [], userId);
+
           return {
             id: comment._id.toString(),
             content: comment.content,
@@ -57,24 +66,21 @@ export class CommentsService {
               userLogin: user!.login,
             },
             createdAt: comment.createdAt,
-            likesInfo: {
-              likesCount: 0,
-              dislikesCount: 0,
-              myStatus: 'None',
-            },
+            // ↓ ИЗМЕНЕНО: было { 0, 0, 'None' }
+            likesInfo,
           };
         }),
       ),
     };
   }
 
-  // ↓ НЕ ИЗМЕНИЛОСЬ: query остаётся в сервисе
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const comment = await this.commentModel.findById(id);
-
     if (!comment) throw new NotFoundException('Comment not found');
 
     const user = await this.userModel.findById(comment.userId);
+    // ↓ ИЗМЕНЕНО: считаем лайки
+    const likesInfo = this.formatLikesInfo(comment.likes || [], userId);
 
     return {
       id: comment._id.toString(),
@@ -84,13 +90,8 @@ export class CommentsService {
         userLogin: user!.login,
       },
       createdAt: comment.createdAt,
-      likesInfo: {
-        likesCount: 0,
-        dislikesCount: 0,
-        myStatus: 'None',
-      },
+      // ↓ ИЗМЕНЕНО: было { 0, 0, 'None' }
+      likesInfo,
     };
   }
-
-  // ↓ УДАЛЕНО: методы update и remove — переехали в UseCases
 }

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Blog, BlogDocument } from './blog.schema';
-import { Post, PostDocument } from '../posts/post.schema';
+import { Post, PostDocument, PostLike } from '../posts/post.schema';
 import { QueryBlogsDto } from './dto/query-blogs.dto';
 import { BlogViewModel, Paginator } from './entities/blog-paginator.entity';
 import { QueryPostsDto } from '../posts/dto/query-posts.dto';
@@ -66,13 +66,12 @@ export class BlogsService {
   async findPostsForBlog(
     blogId: string,
     query: QueryPostsDto,
+    userId?: string,
   ): Promise<Paginator<PostViewModel>> {
     const blog = await this.blogModel.findById(blogId);
-
     if (!blog) throw new NotFoundException('Blog not found');
 
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
-
     const totalCount = await this.postModel.countDocuments({ blogId });
     const pagesCount = Math.ceil(totalCount / pageSize);
 
@@ -87,21 +86,50 @@ export class BlogsService {
       page: pageNumber,
       pageSize,
       totalCount,
-      items: posts.map((post) => ({
-        id: post._id.toString(),
-        title: post.title,
-        shortDescription: post.shortDescription,
-        content: post.content,
-        blogId: post.blogId.toString(),
-        blogName: blog.name,
-        createdAt: post.createdAt,
-        extendedLikesInfo: {
-          likesCount: 0,
-          dislikesCount: 0,
-          myStatus: 'None',
-          newestLikes: [],
-        },
-      })),
+      items: posts.map((post) => {
+        const likes: PostLike[] = post.likes || [];
+
+        // ↓ ИЗМЕНЕНО: считаем лайки
+        const likesCount = likes.filter((l) => l.status === 'Like').length;
+        const dislikesCount = likes.filter(
+          (l) => l.status === 'Dislike',
+        ).length;
+
+        // ↓ ИЗМЕНЕНО: статус текущего юзера
+        const myStatus = userId
+          ? likes.find((l) => l.userId === userId)?.status || 'None'
+          : 'None';
+
+        // ↓ ИЗМЕНЕНО: последние 3 лайка
+        const newestLikes = likes
+          .filter((l) => l.status === 'Like')
+          .sort(
+            (a, b) =>
+              new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime(),
+          )
+          .slice(0, 3)
+          .map((l) => ({
+            addedAt: l.addedAt,
+            userId: l.userId,
+            login: l.userLogin,
+          }));
+
+        return {
+          id: post._id.toString(),
+          title: post.title,
+          shortDescription: post.shortDescription,
+          content: post.content,
+          blogId: post.blogId.toString(),
+          blogName: blog.name,
+          createdAt: post.createdAt,
+          extendedLikesInfo: {
+            likesCount,
+            dislikesCount,
+            myStatus,
+            newestLikes,
+          },
+        };
+      }),
     };
   }
 }

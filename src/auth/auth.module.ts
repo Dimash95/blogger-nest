@@ -7,7 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { CustomJwtService } from './jwt.service';
 import { EmailModule } from '../email/email.module';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from './guards/jwt-auth.guard';
 import { User, UserSchema } from '../users/user.schema';
 // ↓ ДОБАВЛЕНО: импорт UseCase
 import { LoginUseCase } from './use-cases/login.use-case';
@@ -22,7 +22,12 @@ import { LoginUseCase } from './use-cases/login.use-case';
   ],
   controllers: [AuthController],
   // ↓ ИЗМЕНЕНО: добавили LoginUseCase в providers
-  providers: [AuthService, CustomJwtService, JwtAuthGuard, LoginUseCase],
-  exports: [CustomJwtService, JwtAuthGuard],
+  providers: [
+    AuthService,
+    CustomJwtService,
+    OptionalJwtAuthGuard,
+    LoginUseCase,
+  ],
+  exports: [CustomJwtService, OptionalJwtAuthGuard],
 })
 export class AuthModule {}

@@ -11,7 +11,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // удаляет лишние поля
-      forbidNonWhitelisted: true, // выдает ошибку если есть лишние поля
+      // forbidNonWhitelisted: true, // выдает ошибку если есть лишние поля
       transform: true, // автоматически трансформирует типы
       exceptionFactory: (errors) => {
         const errorsMessages = errors.map((error) => ({

@@ -11,12 +11,14 @@ import { User, UserSchema } from '../users/user.schema';
 import { CreateCommentUseCase } from './use-cases/create-comment.use-case';
 import { UpdateCommentUseCase } from './use-cases/update-comment.use-case';
 import { DeleteCommentUseCase } from './use-cases/delete-comment.use-case';
+import { UpdateCommentLikeUseCase } from './use-cases/update-comment-like.use-case';
 
 // ↓ ДОБАВЛЕНО: массив UseCases
 const UseCases = [
   CreateCommentUseCase,
   UpdateCommentUseCase,
   DeleteCommentUseCase,
+  UpdateCommentLikeUseCase,
 ];
 
 @Module({

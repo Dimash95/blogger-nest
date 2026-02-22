@@ -6,6 +6,7 @@ import { Blog, BlogDocument } from '../blogs/blog.schema';
 // ↓ УДАЛЕНО: CreatePostDto, UpdatePostDto — они больше не нужны в сервисе
 import { QueryPostsDto } from './dto/query-posts.dto';
 import { Paginator, PostViewModel } from './entities/post-paginator.entity';
+import { PostLike } from './post.schema';
 
 @Injectable()
 export class PostsService {
@@ -14,29 +15,57 @@ export class PostsService {
     @InjectModel(Blog.name) private blogModel: Model<BlogDocument>,
   ) {}
 
-  // ↓ НЕ ИЗМЕНИЛОСЬ: вспомогательный метод форматирования нужен для findAll и findOne
-  private formatPostWithLikes(post: any, blogName: string): PostViewModel {
+  private formatPostWithLikes(
+    post: any,
+    blogName: string,
+    userId?: string,
+  ): PostViewModel {
+    const likes: PostLike[] = post.likes || [];
+
+    // ↓ ИЗМЕНЕНО: считаем лайки из массива
+    const likesCount = likes.filter((l) => l.status === 'Like').length;
+    const dislikesCount = likes.filter((l) => l.status === 'Dislike').length;
+
+    // ↓ ИЗМЕНЕНО: ищем статус текущего юзера
+    const myStatus = userId
+      ? (likes.find((l) => l.userId === userId)?.status as string) || 'None'
+      : 'None';
+
+    // ↓ ИЗМЕНЕНО: последние 3 лайка отсортированные по дате
+    const newestLikes = likes
+      .filter((l) => l.status === 'Like')
+      .sort(
+        (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime(),
+      )
+      .slice(0, 3)
+      .map((l) => ({
+        addedAt: l.addedAt,
+        userId: l.userId,
+        login: l.userLogin,
+      }));
+
     return {
       id: post._id.toString(),
       title: post.title,
       shortDescription: post.shortDescription,
       content: post.content,
       blogId: post.blogId.toString(),
-      blogName: blogName,
+      blogName,
       createdAt: post.createdAt,
       extendedLikesInfo: {
-        likesCount: 0,
-        dislikesCount: 0,
-        myStatus: 'None',
-        newestLikes: [],
+        likesCount,
+        dislikesCount,
+        myStatus,
+        newestLikes,
       },
     };
   }
 
-  // ↓ УДАЛЕНО: метод create — переехал в CreatePostUseCase
-
-  // ↓ НЕ ИЗМЕНИЛОСЬ: query остаётся в сервисе
-  async findAll(query: QueryPostsDto): Promise<Paginator<PostViewModel>> {
+  // ↓ ИЗМЕНЕНО: добавили опциональный userId в findAll
+  async findAll(
+    query: QueryPostsDto,
+    userId?: string,
+  ): Promise<Paginator<PostViewModel>> {
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
     const totalCount = await this.postModel.countDocuments();
     const sort: any = { [sortBy]: sortDirection === 'asc' ? 1 : -1 };
@@ -52,22 +81,22 @@ export class PostsService {
     const items = await Promise.all(
       posts.map(async (post) => {
         const blog = await this.blogModel.findById(post.blogId);
-        return this.formatPostWithLikes(post, blog?.name || '');
+        // ↓ ИЗМЕНЕНО: передаём userId
+        return this.formatPostWithLikes(post, blog?.name || '', userId);
       }),
     );
 
     return { pagesCount, page: pageNumber, pageSize, totalCount, items };
   }
 
-  // ↓ НЕ ИЗМЕНИЛОСЬ: query остаётся в сервисе
-  async findOne(id: string) {
+  // ↓ ИЗМЕНЕНО: добавили опциональный userId в findOne
+  async findOne(id: string, userId?: string) {
     const post = await this.postModel.findById(id);
 
     if (!post) throw new NotFoundException('Post not found');
 
     const blog = await this.blogModel.findById(post.blogId);
-    return this.formatPostWithLikes(post, blog?.name || '');
+    // ↓ ИЗМЕНЕНО: передаём userId
+    return this.formatPostWithLikes(post, blog?.name || '', userId);
   }
-
-  // ↓ УДАЛЕНО: методы update и remove — переехали в UseCases
 }
