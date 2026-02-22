@@ -12,6 +12,7 @@ import { CreateCommentUseCase } from './use-cases/create-comment.use-case';
 import { UpdateCommentUseCase } from './use-cases/update-comment.use-case';
 import { DeleteCommentUseCase } from './use-cases/delete-comment.use-case';
 import { UpdateCommentLikeUseCase } from './use-cases/update-comment-like.use-case';
+import { AuthModule } from 'src/auth/auth.module';
 
 // ↓ ДОБАВЛЕНО: массив UseCases
 const UseCases = [
@@ -25,6 +26,7 @@ const UseCases = [
   imports: [
     // ↓ ДОБАВЛЕНО: CqrsModule
     CqrsModule,
+    AuthModule,
     MongooseModule.forFeature([
       { name: Comment.name, schema: CommentSchema },
       { name: Post.name, schema: PostSchema },

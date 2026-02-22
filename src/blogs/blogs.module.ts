@@ -10,6 +10,7 @@ import { CreateBlogUseCase } from './use-cases/create-blog.use-case';
 import { UpdateBlogUseCase } from './use-cases/update-blog.use-case';
 import { DeleteBlogUseCase } from './use-cases/delete-blog.use-case';
 import { CreatePostForBlogUseCase } from './use-cases/create-post-for-blog.use-case';
+import { AuthModule } from 'src/auth/auth.module';
 
 const UseCases = [
   CreateBlogUseCase,
@@ -22,6 +23,7 @@ const UseCases = [
   imports: [
     // ↓ ДОБАВЛЕНО: без этого CommandBus не работает
     CqrsModule,
+    AuthModule,
     MongooseModule.forFeature([
       { name: Blog.name, schema: BlogSchema },
       { name: Post.name, schema: PostSchema },

@@ -12,6 +12,7 @@ import { CreatePostUseCase } from './use-cases/create-post.use-case';
 import { UpdatePostUseCase } from './use-cases/update-post.use-case';
 import { DeletePostUseCase } from './use-cases/delete-post.use-case';
 import { UpdatePostLikeUseCase } from 'src/likes/use-cases/update-post-like.use-case';
+import { AuthModule } from 'src/auth/auth.module';
 
 // ↓ ДОБАВЛЕНО: массив для удобного подключения в providers
 const UseCases = [
@@ -25,6 +26,7 @@ const UseCases = [
   imports: [
     // ↓ ДОБАВЛЕНО: CqrsModule обязателен для работы CommandBus
     CqrsModule,
+    AuthModule,
     MongooseModule.forFeature([
       { name: Post.name, schema: PostSchema },
       { name: Blog.name, schema: BlogSchema },
