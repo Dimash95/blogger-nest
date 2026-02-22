@@ -9,20 +9,28 @@ import {
   Query,
   Put,
 } from '@nestjs/common';
+import { CommandBus } from '@nestjs/cqrs';
 import { BlogsService } from './blogs.service';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { QueryBlogsDto } from './dto/query-blogs.dto';
 import { CreatePostForBlogDto } from 'src/posts/dto/create-post-for-blog.dto';
 import { QueryPostsDto } from 'src/posts/dto/query-posts.dto';
+import { CreateBlogCommand } from './use-cases/create-blog.use-case';
+import { UpdateBlogCommand } from './use-cases/update-blog.use-case';
+import { DeleteBlogCommand } from './use-cases/delete-blog.use-case';
+import { CreatePostForBlogCommand } from './use-cases/create-post-for-blog.use-case';
 
 @Controller('blogs')
 export class BlogsController {
-  constructor(private readonly blogsService: BlogsService) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly blogsService: BlogsService,
+  ) {}
 
   @Post()
-  create(@Body() createBlogDto: CreateBlogDto) {
-    return this.blogsService.create(createBlogDto);
+  create(@Body() dto: CreateBlogDto) {
+    return this.commandBus.execute(new CreateBlogCommand(dto));
   }
 
   @Get()
@@ -37,22 +45,22 @@ export class BlogsController {
 
   @Put(':id')
   @HttpCode(204)
-  async update(@Param('id') id: string, @Body() updateBlogDto: UpdateBlogDto) {
-    await this.blogsService.update(id, updateBlogDto);
+  update(@Param('id') id: string, @Body() dto: UpdateBlogDto) {
+    return this.commandBus.execute(new UpdateBlogCommand(id, dto));
   }
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id') id: string) {
-    await this.blogsService.remove(id);
+  remove(@Param('id') id: string) {
+    return this.commandBus.execute(new DeleteBlogCommand(id));
   }
 
   @Post(':blogId/posts')
   createPostForBlog(
     @Param('blogId') blogId: string,
-    @Body() createPostDto: CreatePostForBlogDto,
+    @Body() dto: CreatePostForBlogDto,
   ) {
-    return this.blogsService.createPostForBlog(blogId, createPostDto);
+    return this.commandBus.execute(new CreatePostForBlogCommand(blogId, dto));
   }
 
   @Get(':blogId/posts')
