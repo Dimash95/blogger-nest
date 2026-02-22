@@ -26,7 +26,10 @@ import { CreateCommentDto } from '../comments/dto/create-comment.dto';
 import { QueryCommentsDto } from '../comments/dto/query-comments.dto';
 import { CreateCommentCommand } from '../comments/use-cases/create-comment.use-case';
 import { BasicAuthGuard } from 'src/auth/guards/basic-auth.guard';
-import { OptionalJwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import {
+  JwtAuthGuard,
+  OptionalJwtAuthGuard,
+} from 'src/auth/guards/jwt-auth.guard';
 import { LikeStatusDto } from 'src/likes/dto/like-status.dto';
 import { UpdatePostLikeCommand } from 'src/likes/use-cases/update-post-like.use-case';
 
@@ -109,7 +112,7 @@ export class PostsController {
     return this.commentsService.findCommentsForPost(postId, query);
   }
 
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Put(':postId/like-status')
   @HttpCode(204)
   updateLike(

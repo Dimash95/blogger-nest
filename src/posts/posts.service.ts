@@ -40,7 +40,7 @@ export class PostsService {
       .slice(0, 3)
       .map((l) => ({
         addedAt: l.addedAt,
-        userId: l.userId,
+        userId: l.userId.toString(),
         login: l.userLogin,
       }));
 

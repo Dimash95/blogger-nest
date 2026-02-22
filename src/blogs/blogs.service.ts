@@ -97,7 +97,7 @@ export class BlogsService {
 
         // ↓ ИЗМЕНЕНО: статус текущего юзера
         const myStatus = userId
-          ? likes.find((l) => l.userId === userId)?.status || 'None'
+          ? likes.find((l) => l.userId.toString() === userId)?.status || 'None'
           : 'None';
 
         // ↓ ИЗМЕНЕНО: последние 3 лайка

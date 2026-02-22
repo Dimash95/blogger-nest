@@ -16,7 +16,10 @@ import { CommentsService } from './comments.service';
 import { UpdateCommentCommand } from './use-cases/update-comment.use-case';
 import { DeleteCommentCommand } from './use-cases/delete-comment.use-case';
 import { UpdateCommentDto } from './dto/update-comment.dto';
-import { OptionalJwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import {
+  JwtAuthGuard,
+  OptionalJwtAuthGuard,
+} from 'src/auth/guards/jwt-auth.guard';
 import { LikeStatusDto } from 'src/likes/dto/like-status.dto';
 import { UpdateCommentLikeCommand } from './use-cases/update-comment-like.use-case';
 
@@ -61,7 +64,7 @@ export class CommentsController {
     return this.commandBus.execute(new DeleteCommentCommand(id, userId));
   }
 
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Put(':commentId/like-status')
   @HttpCode(204)
   updateLike(

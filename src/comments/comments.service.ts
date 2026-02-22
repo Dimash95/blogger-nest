@@ -23,7 +23,7 @@ export class CommentsService {
     const likesCount = likes.filter((l) => l.status === 'Like').length;
     const dislikesCount = likes.filter((l) => l.status === 'Dislike').length;
     const myStatus = userId
-      ? likes.find((l) => l.userId === userId)?.status || 'None'
+      ? likes.find((l) => l.userId.toString() === userId)?.status || 'None'
       : 'None';
 
     return { likesCount, dislikesCount, myStatus };
