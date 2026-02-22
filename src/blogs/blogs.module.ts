@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+// ↓ ДОБАВЛЕНО: CqrsModule
+import { CqrsModule } from '@nestjs/cqrs';
 import { BlogsService } from './blogs.service';
 import { BlogsController } from './blogs.controller';
 import { Blog, BlogSchema } from './blog.schema';
@@ -15,15 +17,20 @@ const UseCases = [
   DeleteBlogUseCase,
   CreatePostForBlogUseCase,
 ];
+
 @Module({
   imports: [
+    // ↓ ДОБАВЛЕНО: без этого CommandBus не работает
+    CqrsModule,
     MongooseModule.forFeature([
       { name: Blog.name, schema: BlogSchema },
       { name: Post.name, schema: PostSchema },
     ]),
   ],
   controllers: [BlogsController],
-  providers: [BlogsService],
-  exports: [BlogsService, ...UseCases],
+  // ↓ ИЗМЕНЕНО: UseCases добавлены в providers
+  providers: [BlogsService, ...UseCases],
+  // ↓ ИЗМЕНЕНО: UseCases убраны из exports — они нужны только внутри модуля
+  exports: [BlogsService],
 })
 export class BlogsModule {}
