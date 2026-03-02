@@ -101,9 +101,14 @@ export class PostsService {
     // Если сортируем по blogName — нужен lookup
     const posts = await this.postModel.aggregate([
       {
+        $addFields: {
+          blogObjectId: { $toObjectId: '$blogId' }, // ← cast string → ObjectId
+        },
+      },
+      {
         $lookup: {
-          from: 'blogs', // название коллекции в MongoDB (обычно lowercase + s)
-          localField: 'blogId',
+          from: 'blogs',
+          localField: 'blogObjectId', // ← используем кастованное поле
           foreignField: '_id',
           as: 'blog',
         },

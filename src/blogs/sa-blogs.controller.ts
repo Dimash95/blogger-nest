@@ -20,10 +20,10 @@ import { CreateBlogCommand } from './use-cases/create-blog.use-case';
 import { UpdateBlogCommand } from './use-cases/update-blog.use-case';
 import { DeleteBlogCommand } from './use-cases/delete-blog.use-case';
 import { CreatePostForBlogCommand } from './use-cases/create-post-for-blog.use-case';
-import { UpdatePostDto } from 'src/posts/dto/update-post.dto';
-import { UpdatePostCommand } from 'src/posts/use-cases/update-post.use-case';
-import { DeletePostCommand } from 'src/posts/use-cases/delete-post.use-case';
 import { BasicAuthGuard } from 'src/auth/guards/basic-auth.guard';
+import { UpdatePostSaDto } from 'src/posts/dto/update-post-sa.dto';
+import { UpdatePostSaCommand } from 'src/posts/use-cases/update-post-sa.use-case';
+import { DeletePostSaCommand } from 'src/posts/use-cases/delete-post-sa.use-case';
 
 @Controller('sa/blogs')
 @UseGuards(BasicAuthGuard)
@@ -68,14 +68,16 @@ export class SaBlogsController {
   updatePost(
     @Param('blogId') blogId: string,
     @Param('postId') postId: string,
-    @Body() dto: UpdatePostDto,
+    @Body() dto: UpdatePostSaDto,
   ) {
-    return this.commandBus.execute(new UpdatePostCommand(postId, dto));
+    return this.commandBus.execute(
+      new UpdatePostSaCommand(blogId, postId, dto),
+    );
   }
 
   @Delete(':blogId/posts/:postId')
   @HttpCode(204)
   deletePost(@Param('blogId') blogId: string, @Param('postId') postId: string) {
-    return this.commandBus.execute(new DeletePostCommand(postId));
+    return this.commandBus.execute(new DeletePostSaCommand(blogId, postId));
   }
 }
