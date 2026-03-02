@@ -98,17 +98,11 @@ export class PostsService {
 
     const totalCount = await this.postModel.countDocuments();
 
-    // Если сортируем по blogName — нужен lookup
     const posts = await this.postModel.aggregate([
       {
-        $addFields: {
-          blogObjectId: { $toObjectId: '$blogId' }, // ← cast string → ObjectId
-        },
-      },
-      {
         $lookup: {
-          from: 'blogs',
-          localField: 'blogObjectId', // ← используем кастованное поле
+          from: 'Blog',
+          localField: 'blogId',
           foreignField: '_id',
           as: 'blog',
         },
