@@ -95,31 +95,58 @@ export class PostsService {
   ): Promise<Paginator<PostViewModel>> {
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
     const sortDir = sortDirection === 'asc' ? 1 : -1;
-
     const totalCount = await this.postModel.countDocuments();
 
-    const posts = await this.postModel.aggregate([
-      {
-        $lookup: {
-          from: 'Blog',
-          localField: 'blogId',
-          foreignField: '_id',
-          as: 'blog',
-        },
-      },
-      { $unwind: { path: '$blog', preserveNullAndEmptyArrays: true } },
-      { $addFields: { blogName: '$blog.name' } },
-      { $sort: { [sortBy === 'blogName' ? 'blogName' : sortBy]: sortDir } },
-      { $skip: (pageNumber - 1) * pageSize },
-      { $limit: pageSize },
-    ]);
+    // Если сортировка по blogName — нужно подтянуть все посты, обогатить blogName, потом сортировать
+    if (sortBy === 'blogName') {
+      const allPosts = await this.postModel.find().lean();
+
+      // Одним запросом берём все нужные блоги
+      const blogIds = [...new Set(allPosts.map((p) => p.blogId.toString()))];
+      const blogs = await this.blogModel.find({ _id: { $in: blogIds } }).lean();
+      const blogMap = new Map(blogs.map((b) => [b._id.toString(), b.name]));
+
+      const enriched = allPosts.map((post) => ({
+        ...post,
+        resolvedBlogName: blogMap.get(post.blogId.toString()) || '',
+      }));
+
+      enriched.sort((a, b) =>
+        sortDir === 1
+          ? a.resolvedBlogName.localeCompare(b.resolvedBlogName)
+          : b.resolvedBlogName.localeCompare(a.resolvedBlogName),
+      );
+
+      const paginated = enriched.slice(
+        (pageNumber - 1) * pageSize,
+        pageNumber * pageSize,
+      );
+      const pagesCount = Math.ceil(totalCount / pageSize);
+
+      const items = paginated.map((post) =>
+        this.formatPostWithLikes(post, post.resolvedBlogName, userId),
+      );
+
+      return { pagesCount, page: pageNumber, pageSize, totalCount, items };
+    }
+
+    // Обычная сортировка
+    const posts = await this.postModel
+      .find()
+      .sort({ [sortBy]: sortDir })
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize)
+      .lean();
+
+    const blogIds = [...new Set(posts.map((p) => p.blogId.toString()))];
+    const blogs = await this.blogModel.find({ _id: { $in: blogIds } }).lean();
+    const blogMap = new Map(blogs.map((b) => [b._id.toString(), b.name]));
 
     const pagesCount = Math.ceil(totalCount / pageSize);
-
     const items = posts.map((post) =>
       this.formatPostWithLikes(
         post,
-        post.blogName || post.blog?.name || '',
+        blogMap.get(post.blogId.toString()) || '',
         userId,
       ),
     );
