@@ -11,6 +11,7 @@ import { UpdateBlogUseCase } from './use-cases/update-blog.use-case';
 import { DeleteBlogUseCase } from './use-cases/delete-blog.use-case';
 import { CreatePostForBlogUseCase } from './use-cases/create-post-for-blog.use-case';
 import { AuthModule } from 'src/auth/auth.module';
+import { SaBlogsController } from './sa-blogs.controller';
 
 const UseCases = [
   CreateBlogUseCase,
@@ -29,7 +30,7 @@ const UseCases = [
       { name: Post.name, schema: PostSchema },
     ]),
   ],
-  controllers: [BlogsController],
+  controllers: [BlogsController, SaBlogsController],
   // ↓ ИЗМЕНЕНО: UseCases добавлены в providers
   providers: [BlogsService, ...UseCases],
   // ↓ ИЗМЕНЕНО: UseCases убраны из exports — они нужны только внутри модуля
