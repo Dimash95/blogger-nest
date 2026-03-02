@@ -62,28 +62,67 @@ export class PostsService {
   }
 
   // ↓ ИЗМЕНЕНО: добавили опциональный userId в findAll
+  // async findAll(
+  //   query: QueryPostsDto,
+  //   userId?: string,
+  // ): Promise<Paginator<PostViewModel>> {
+  //   const { sortBy, sortDirection, pageNumber, pageSize } = query;
+  //   const totalCount = await this.postModel.countDocuments();
+  //   const sort: any = { [sortBy]: sortDirection === 'asc' ? 1 : -1 };
+
+  //   const posts = await this.postModel
+  //     .find()
+  //     .sort(sort)
+  //     .skip((pageNumber - 1) * pageSize)
+  //     .limit(pageSize);
+
+  //   const pagesCount = Math.ceil(totalCount / pageSize);
+
+  //   const items = await Promise.all(
+  //     posts.map(async (post) => {
+  //       const blog = await this.blogModel.findById(post.blogId);
+  //       // ↓ ИЗМЕНЕНО: передаём userId
+  //       return this.formatPostWithLikes(post, blog?.name || '', userId);
+  //     }),
+  //   );
+
+  //   return { pagesCount, page: pageNumber, pageSize, totalCount, items };
+  // }
+
   async findAll(
     query: QueryPostsDto,
     userId?: string,
   ): Promise<Paginator<PostViewModel>> {
     const { sortBy, sortDirection, pageNumber, pageSize } = query;
-    const totalCount = await this.postModel.countDocuments();
-    const sort: any = { [sortBy]: sortDirection === 'asc' ? 1 : -1 };
+    const sortDir = sortDirection === 'asc' ? 1 : -1;
 
-    const posts = await this.postModel
-      .find()
-      .sort(sort)
-      .skip((pageNumber - 1) * pageSize)
-      .limit(pageSize);
+    const totalCount = await this.postModel.countDocuments();
+
+    // Если сортируем по blogName — нужен lookup
+    const posts = await this.postModel.aggregate([
+      {
+        $lookup: {
+          from: 'blogs', // название коллекции в MongoDB (обычно lowercase + s)
+          localField: 'blogId',
+          foreignField: '_id',
+          as: 'blog',
+        },
+      },
+      { $unwind: { path: '$blog', preserveNullAndEmptyArrays: true } },
+      { $addFields: { blogName: '$blog.name' } },
+      { $sort: { [sortBy === 'blogName' ? 'blogName' : sortBy]: sortDir } },
+      { $skip: (pageNumber - 1) * pageSize },
+      { $limit: pageSize },
+    ]);
 
     const pagesCount = Math.ceil(totalCount / pageSize);
 
-    const items = await Promise.all(
-      posts.map(async (post) => {
-        const blog = await this.blogModel.findById(post.blogId);
-        // ↓ ИЗМЕНЕНО: передаём userId
-        return this.formatPostWithLikes(post, blog?.name || '', userId);
-      }),
+    const items = posts.map((post) =>
+      this.formatPostWithLikes(
+        post,
+        post.blogName || post.blog?.name || '',
+        userId,
+      ),
     );
 
     return { pagesCount, page: pageNumber, pageSize, totalCount, items };

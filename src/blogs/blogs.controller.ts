@@ -24,6 +24,9 @@ import { DeleteBlogCommand } from './use-cases/delete-blog.use-case';
 import { CreatePostForBlogCommand } from './use-cases/create-post-for-blog.use-case';
 import { BasicAuthGuard } from 'src/auth/guards/basic-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { UpdatePostSaDto } from 'src/posts/dto/update-post-sa.dto';
+import { UpdatePostSaCommand } from 'src/posts/use-cases/update-post-sa.use-case';
+import { DeletePostSaCommand } from 'src/posts/use-cases/delete-post-sa.use-case';
 
 @Controller('blogs')
 export class BlogsController {
@@ -80,5 +83,23 @@ export class BlogsController {
   ) {
     const userId = req.user?.userId;
     return this.blogsService.findPostsForBlog(blogId, query, userId);
+  }
+
+  @Put(':blogId/posts/:postId')
+  @HttpCode(204)
+  updatePost(
+    @Param('blogId') blogId: string,
+    @Param('postId') postId: string,
+    @Body() dto: UpdatePostSaDto,
+  ) {
+    return this.commandBus.execute(
+      new UpdatePostSaCommand(blogId, postId, dto),
+    );
+  }
+
+  @Delete(':blogId/posts/:postId')
+  @HttpCode(204)
+  deletePost(@Param('blogId') blogId: string, @Param('postId') postId: string) {
+    return this.commandBus.execute(new DeletePostSaCommand(blogId, postId));
   }
 }

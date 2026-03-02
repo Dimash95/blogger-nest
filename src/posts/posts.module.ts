@@ -13,6 +13,8 @@ import { UpdatePostUseCase } from './use-cases/update-post.use-case';
 import { DeletePostUseCase } from './use-cases/delete-post.use-case';
 import { UpdatePostLikeUseCase } from 'src/likes/use-cases/update-post-like.use-case';
 import { AuthModule } from 'src/auth/auth.module';
+import { DeletePostSaUseCase } from './use-cases/delete-post-sa.use-case';
+import { UpdatePostSaUseCase } from './use-cases/update-post-sa.use-case';
 
 // ↓ ДОБАВЛЕНО: массив для удобного подключения в providers
 const UseCases = [
@@ -20,6 +22,8 @@ const UseCases = [
   UpdatePostUseCase,
   DeletePostUseCase,
   UpdatePostLikeUseCase,
+  UpdatePostSaUseCase,
+  DeletePostSaUseCase,
 ];
 
 @Module({
