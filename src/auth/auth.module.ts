@@ -11,16 +11,16 @@ import { OptionalJwtAuthGuard } from './guards/jwt-auth.guard';
 import { User, UserSchema } from '../users/user.schema';
 // ↓ ДОБАВЛЕНО: импорт UseCase
 import { LoginUseCase } from './use-cases/login.use-case';
+import { SecurityDevicesController } from './security-devices.controller';
 
 @Module({
   imports: [
-    // ↓ ДОБАВЛЕНО: CqrsModule
     CqrsModule,
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     JwtModule.register({}),
     EmailModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SecurityDevicesController],
   // ↓ ИЗМЕНЕНО: добавили LoginUseCase в providers
   providers: [
     AuthService,

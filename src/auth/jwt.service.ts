@@ -20,7 +20,7 @@ export class CustomJwtService {
     const payload: TokenPayload = { userId, userLogin };
     return this.jwtService.sign(payload, {
       secret: process.env.ACCESS_TOKEN_SECRET || 'access-secret',
-      expiresIn: '10m', // 10 минут
+      expiresIn: '10s',
     });
   }
 
@@ -43,11 +43,11 @@ export class CustomJwtService {
 
     const token = this.jwtService.sign(payload, {
       secret: process.env.REFRESH_TOKEN_SECRET || 'refresh-secret',
-      expiresIn: '10m',
+      expiresIn: '20s',
     });
 
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    expiresAt.setSeconds(expiresAt.getSeconds() + 20);
 
     return { token, tokenId, expiresAt };
   }

@@ -240,6 +240,145 @@ export class AuthService {
     await user.save();
   }
 
+  async refreshToken(oldRefreshToken: string) {
+    const payload = this.jwtService.verifyRefreshToken(oldRefreshToken);
+    if (!payload) throw new UnauthorizedException();
+
+    const user = await this.userModel.findById(payload.userId);
+    if (!user) throw new UnauthorizedException();
+
+    const tokenRecord = user.refreshTokens.find(
+      (t: any) => t.tokenId === payload.tokenId && t.isValid,
+    );
+    if (!tokenRecord) throw new UnauthorizedException();
+
+    // invalidate old token
+    tokenRecord.isValid = false;
+
+    const { token: newRefreshToken, tokenId, expiresAt } = this.jwtService.generateRefreshToken(
+      user._id.toString(),
+      user.login,
+      payload.deviceId,
+    );
+
+    const newAccessToken = this.jwtService.generateAccessToken(
+      user._id.toString(),
+      user.login,
+    );
+
+    // update device lastActiveDate
+    const device = user.devices.find((d: any) => d.deviceId === payload.deviceId);
+    if (device) device.lastActiveDate = new Date();
+
+    user.refreshTokens.push({
+      token: newRefreshToken,
+      tokenId,
+      deviceId: payload.deviceId,
+      isValid: true,
+      createdAt: new Date(),
+      expiresAt,
+    });
+
+    await user.save();
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  }
+
+  async logout(oldRefreshToken: string) {
+    const payload = this.jwtService.verifyRefreshToken(oldRefreshToken);
+    if (!payload) throw new UnauthorizedException();
+
+    const user = await this.userModel.findById(payload.userId);
+    if (!user) throw new UnauthorizedException();
+
+    const tokenRecord = user.refreshTokens.find(
+      (t: any) => t.tokenId === payload.tokenId && t.isValid,
+    );
+    if (!tokenRecord) throw new UnauthorizedException();
+
+    tokenRecord.isValid = false;
+
+    // remove device
+    user.devices = user.devices.filter((d: any) => d.deviceId !== payload.deviceId);
+
+    await user.save();
+  }
+
+  async getDevices(refreshToken: string) {
+    const payload = this.jwtService.verifyRefreshToken(refreshToken);
+    if (!payload) throw new UnauthorizedException();
+
+    const user = await this.userModel.findById(payload.userId);
+    if (!user) throw new UnauthorizedException();
+
+    const tokenRecord = user.refreshTokens.find(
+      (t: any) => t.tokenId === payload.tokenId && t.isValid,
+    );
+    if (!tokenRecord) throw new UnauthorizedException();
+
+    return user.devices.map((d: any) => ({
+      ip: d.ip,
+      title: d.title,
+      lastActiveDate: d.lastActiveDate,
+      deviceId: d.deviceId,
+    }));
+  }
+
+  async deleteAllDevices(refreshToken: string) {
+    const payload = this.jwtService.verifyRefreshToken(refreshToken);
+    if (!payload) throw new UnauthorizedException();
+
+    const user = await this.userModel.findById(payload.userId);
+    if (!user) throw new UnauthorizedException();
+
+    const tokenRecord = user.refreshTokens.find(
+      (t: any) => t.tokenId === payload.tokenId && t.isValid,
+    );
+    if (!tokenRecord) throw new UnauthorizedException();
+
+    // keep only current device
+    user.devices = user.devices.filter((d: any) => d.deviceId === payload.deviceId);
+    // invalidate all other refresh tokens
+    user.refreshTokens = user.refreshTokens.map((t: any) => {
+      if (t.deviceId !== payload.deviceId) t.isValid = false;
+      return t;
+    });
+
+    await user.save();
+  }
+
+  async deleteDevice(refreshToken: string, deviceId: string) {
+    const payload = this.jwtService.verifyRefreshToken(refreshToken);
+    if (!payload) throw new UnauthorizedException();
+
+    const user = await this.userModel.findById(payload.userId);
+    if (!user) throw new UnauthorizedException();
+
+    const tokenRecord = user.refreshTokens.find(
+      (t: any) => t.tokenId === payload.tokenId && t.isValid,
+    );
+    if (!tokenRecord) throw new UnauthorizedException();
+
+    const device = user.devices.find((d: any) => d.deviceId === deviceId);
+    if (!device) {
+      const { NotFoundException } = await import('@nestjs/common');
+      throw new NotFoundException();
+    }
+
+    if (device.deviceId !== payload.deviceId) {
+      const { ForbiddenException } = await import('@nestjs/common');
+      throw new ForbiddenException();
+    }
+
+    user.devices = user.devices.filter((d: any) => d.deviceId !== deviceId);
+    user.refreshTokens = user.refreshTokens.map((t: any) => {
+      if (t.deviceId === deviceId) t.isValid = false;
+      return t;
+    });
+
+    await user.save();
+  }
+
   async getMe(userId: string) {
     const user = await this.userModel.findById(userId);
 

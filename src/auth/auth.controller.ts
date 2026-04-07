@@ -8,19 +8,19 @@ import {
   Req,
   Res,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-// ↓ ДОБАВЛЕНО: CommandBus
 import { CommandBus } from '@nestjs/cqrs';
 import { AuthService } from './auth.service';
-// ↓ ДОБАВЛЕНО: импорт команды
 import { LoginCommand } from './use-cases/login.use-case';
 import { RegistrationDto } from './dto/registration.dto';
 import { LoginDto } from './dto/login.dto';
 import { ConfirmationCodeDto } from './dto/confirmation-code.dto';
 import { EmailDto } from './dto/email.dto';
 import { NewPasswordDto } from './dto/new-password.dto';
-import { OptionalJwtAuthGuard } from './guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard, JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -33,27 +33,32 @@ export class AuthController {
 
   @Post('registration')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 10000, limit: 5 } })
   async registration(@Body() dto: RegistrationDto) {
-    // ↓ НЕ ИЗМЕНИЛОСЬ
     return this.authService.registration(dto);
   }
 
   @Post('registration-confirmation')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 10000, limit: 5 } })
   async registrationConfirmation(@Body() dto: ConfirmationCodeDto) {
-    // ↓ НЕ ИЗМЕНИЛОСЬ
     return this.authService.registrationConfirmation(dto);
   }
 
   @Post('registration-email-resending')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 10000, limit: 5 } })
   async registrationEmailResending(@Body() dto: EmailDto) {
-    // ↓ НЕ ИЗМЕНИЛОСЬ
     return this.authService.registrationEmailResending(dto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { ttl: 10000, limit: 5 } })
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,
@@ -77,6 +82,32 @@ export class AuthController {
     return { accessToken };
   }
 
+  @Post('refresh-token')
+  @HttpCode(HttpStatus.OK)
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) throw new UnauthorizedException();
+
+    const { accessToken, refreshToken: newRefreshToken } =
+      await this.authService.refreshToken(refreshToken);
+
+    res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: true });
+    return { accessToken };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) throw new UnauthorizedException();
+
+    await this.authService.logout(refreshToken);
+    res.clearCookie('refreshToken');
+  }
+
   @Post('password-recovery')
   @HttpCode(HttpStatus.NO_CONTENT)
   async passwordRecovery(@Body() dto: EmailDto) {
@@ -92,10 +123,9 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async getMe(@Req() req: Request & { user: { userId: string } }) {
-    // ↓ НЕ ИЗМЕНИЛОСЬ
     return this.authService.getMe(req.user.userId);
   }
 }
