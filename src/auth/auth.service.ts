@@ -2,6 +2,8 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -11,7 +13,6 @@ import { randomUUID } from 'crypto';
 import { EmailService } from '../email/email.service';
 import { CustomJwtService } from './jwt.service';
 import { RegistrationDto } from './dto/registration.dto';
-import { LoginDto } from './dto/login.dto';
 import { ConfirmationCodeDto } from './dto/confirmation-code.dto';
 import { EmailDto } from './dto/email.dto';
 import { NewPasswordDto } from './dto/new-password.dto';
@@ -95,6 +96,7 @@ export class AuthService {
     }
 
     user.emailConfirmation.isConfirmed = true;
+    user.markModified('emailConfirmation');
     await user.save();
   }
 
@@ -125,119 +127,10 @@ export class AuthService {
 
     user.emailConfirmation.confirmationCode = newConfirmationCode;
     user.emailConfirmation.expirationDate = expirationDate;
+    user.markModified('emailConfirmation');
     await user.save();
 
     this.emailService.sendRegistrationEmail(email, newConfirmationCode);
-  }
-
-  async login(dto: LoginDto, ip: string, userAgent: string) {
-    const { loginOrEmail, password } = dto;
-
-    const user = await this.userModel.findOne({
-      $or: [{ login: loginOrEmail }, { email: loginOrEmail }],
-    });
-
-    if (!user) {
-      throw new UnauthorizedException({
-        errorsMessages: [
-          { message: 'Invalid credentials', field: 'loginOrEmail' },
-        ],
-      });
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException({
-        errorsMessages: [{ message: 'Invalid credentials', field: 'password' }],
-      });
-    }
-
-    if (!user.emailConfirmation?.isConfirmed) {
-      throw new UnauthorizedException({
-        errorsMessages: [{ message: 'Email not confirmed', field: 'email' }],
-      });
-    }
-
-    const deviceId = randomUUID();
-    const accessToken = this.jwtService.generateAccessToken(
-      user._id.toString(),
-      user.login,
-    );
-    const {
-      token: refreshToken,
-      tokenId,
-      expiresAt,
-    } = this.jwtService.generateRefreshToken(
-      user._id.toString(),
-      user.login,
-      deviceId,
-    );
-
-    user.devices.push({
-      ip,
-      title: userAgent,
-      lastActiveDate: new Date(),
-      deviceId,
-    });
-
-    user.refreshTokens.push({
-      token: refreshToken,
-      tokenId,
-      deviceId,
-      isValid: true,
-      createdAt: new Date(),
-      expiresAt,
-    });
-
-    await user.save();
-
-    return { accessToken };
-  }
-
-  async passwordRecovery(dto: EmailDto): Promise<void> {
-    const { email } = dto;
-    const user = await this.userModel.findOne({ email });
-
-    if (!user) return;
-
-    const recoveryCode = randomUUID();
-    const expirationDate = new Date();
-    expirationDate.setHours(expirationDate.getHours() + 1);
-
-    user.emailConfirmation.recoveryCode = recoveryCode;
-    user.emailConfirmation.expirationDate = expirationDate;
-    await user.save();
-
-    this.emailService.sendPasswordRecovery(email, recoveryCode);
-  }
-
-  async newPassword(dto: NewPasswordDto): Promise<void> {
-    const { newPassword, recoveryCode } = dto;
-
-    const user = await this.userModel.findOne({
-      'emailConfirmation.recoveryCode': recoveryCode,
-    });
-
-    if (!user) {
-      throw new BadRequestException({
-        errorsMessages: [
-          { message: 'Confirmation code is incorrect', field: 'recoveryCode' },
-        ],
-      });
-    }
-
-    if (user.emailConfirmation.expirationDate < new Date()) {
-      throw new BadRequestException({
-        errorsMessages: [
-          { message: 'Confirmation code expired', field: 'recoveryCode' },
-        ],
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    user.emailConfirmation.isConfirmed = true;
-    await user.save();
   }
 
   async refreshToken(oldRefreshToken: string) {
@@ -247,28 +140,32 @@ export class AuthService {
     const user = await this.userModel.findById(payload.userId);
     if (!user) throw new UnauthorizedException();
 
-    const tokenRecord = user.refreshTokens.find(
+    const tokenIndex = user.refreshTokens.findIndex(
       (t: any) => t.tokenId === payload.tokenId && t.isValid,
     );
-    if (!tokenRecord) throw new UnauthorizedException();
+    if (tokenIndex === -1) throw new UnauthorizedException();
 
-    // invalidate old token
-    tokenRecord.isValid = false;
+    user.refreshTokens[tokenIndex].isValid = false;
 
-    const { token: newRefreshToken, tokenId, expiresAt } = this.jwtService.generateRefreshToken(
-      user._id.toString(),
-      user.login,
-      payload.deviceId,
-    );
+    const { token: newRefreshToken, tokenId, expiresAt } =
+      this.jwtService.generateRefreshToken(
+        user._id.toString(),
+        user.login,
+        payload.deviceId,
+      );
 
     const newAccessToken = this.jwtService.generateAccessToken(
       user._id.toString(),
       user.login,
     );
 
-    // update device lastActiveDate
-    const device = user.devices.find((d: any) => d.deviceId === payload.deviceId);
-    if (device) device.lastActiveDate = new Date();
+    const deviceIndex = user.devices.findIndex(
+      (d: any) => d.deviceId === payload.deviceId,
+    );
+    if (deviceIndex !== -1) {
+      user.devices[deviceIndex].lastActiveDate = new Date();
+      user.markModified('devices');
+    }
 
     user.refreshTokens.push({
       token: newRefreshToken,
@@ -278,6 +175,7 @@ export class AuthService {
       createdAt: new Date(),
       expiresAt,
     });
+    user.markModified('refreshTokens');
 
     await user.save();
 
@@ -291,15 +189,17 @@ export class AuthService {
     const user = await this.userModel.findById(payload.userId);
     if (!user) throw new UnauthorizedException();
 
-    const tokenRecord = user.refreshTokens.find(
+    const tokenIndex = user.refreshTokens.findIndex(
       (t: any) => t.tokenId === payload.tokenId && t.isValid,
     );
-    if (!tokenRecord) throw new UnauthorizedException();
+    if (tokenIndex === -1) throw new UnauthorizedException();
 
-    tokenRecord.isValid = false;
-
-    // remove device
-    user.devices = user.devices.filter((d: any) => d.deviceId !== payload.deviceId);
+    user.refreshTokens[tokenIndex].isValid = false;
+    user.devices = user.devices.filter(
+      (d: any) => d.deviceId !== payload.deviceId,
+    );
+    user.markModified('refreshTokens');
+    user.markModified('devices');
 
     await user.save();
   }
@@ -336,13 +236,15 @@ export class AuthService {
     );
     if (!tokenRecord) throw new UnauthorizedException();
 
-    // keep only current device
-    user.devices = user.devices.filter((d: any) => d.deviceId === payload.deviceId);
-    // invalidate all other refresh tokens
+    user.devices = user.devices.filter(
+      (d: any) => d.deviceId === payload.deviceId,
+    );
     user.refreshTokens = user.refreshTokens.map((t: any) => {
       if (t.deviceId !== payload.deviceId) t.isValid = false;
       return t;
     });
+    user.markModified('devices');
+    user.markModified('refreshTokens');
 
     await user.save();
   }
@@ -359,23 +261,76 @@ export class AuthService {
     );
     if (!tokenRecord) throw new UnauthorizedException();
 
-    const device = user.devices.find((d: any) => d.deviceId === deviceId);
-    if (!device) {
-      const { NotFoundException } = await import('@nestjs/common');
-      throw new NotFoundException();
+    const deviceInCurrentUser = user.devices.find(
+      (d: any) => d.deviceId === deviceId,
+    );
+
+    if (deviceInCurrentUser) {
+      user.devices = user.devices.filter((d: any) => d.deviceId !== deviceId);
+      user.refreshTokens = user.refreshTokens.map((t: any) => {
+        if (t.deviceId === deviceId) t.isValid = false;
+        return t;
+      });
+      user.markModified('devices');
+      user.markModified('refreshTokens');
+      await user.save();
+      return;
     }
 
-    if (device.deviceId !== payload.deviceId) {
-      const { ForbiddenException } = await import('@nestjs/common');
-      throw new ForbiddenException();
-    }
+    // Check if it belongs to another user
+    const otherUser = await this.userModel.findOne({
+      'devices.deviceId': deviceId,
+    });
+    if (otherUser) throw new ForbiddenException();
 
-    user.devices = user.devices.filter((d: any) => d.deviceId !== deviceId);
-    user.refreshTokens = user.refreshTokens.map((t: any) => {
-      if (t.deviceId === deviceId) t.isValid = false;
-      return t;
+    throw new NotFoundException();
+  }
+
+  async passwordRecovery(dto: EmailDto): Promise<void> {
+    const { email } = dto;
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) return;
+
+    const recoveryCode = randomUUID();
+    const expirationDate = new Date();
+    expirationDate.setHours(expirationDate.getHours() + 1);
+
+    user.emailConfirmation.recoveryCode = recoveryCode;
+    user.emailConfirmation.expirationDate = expirationDate;
+    user.markModified('emailConfirmation');
+    await user.save();
+
+    this.emailService.sendPasswordRecovery(email, recoveryCode);
+  }
+
+  async newPassword(dto: NewPasswordDto): Promise<void> {
+    const { newPassword, recoveryCode } = dto;
+
+    const user = await this.userModel.findOne({
+      'emailConfirmation.recoveryCode': recoveryCode,
     });
 
+    if (!user) {
+      throw new BadRequestException({
+        errorsMessages: [
+          { message: 'Confirmation code is incorrect', field: 'recoveryCode' },
+        ],
+      });
+    }
+
+    if (user.emailConfirmation.expirationDate < new Date()) {
+      throw new BadRequestException({
+        errorsMessages: [
+          { message: 'Confirmation code expired', field: 'recoveryCode' },
+        ],
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    user.emailConfirmation.isConfirmed = true;
+    user.markModified('emailConfirmation');
     await user.save();
   }
 

@@ -71,9 +71,10 @@ export class LoginUseCase implements ICommandHandler<LoginCommand> {
       expiresAt,
     });
 
+    user.markModified('devices');
+    user.markModified('refreshTokens');
     await user.save();
 
-    // ↓ Возвращаем оба токена — контроллер сам положит refreshToken в cookie
     return { accessToken, refreshToken };
   }
 }
