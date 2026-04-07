@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
-  constructor(private mailerService: MailerService) {}
+  private resend = new Resend(process.env.RESEND_API_KEY);
 
   async sendRegistrationEmail(email: string, code: string): Promise<void> {
-    const startTime = Date.now();
     try {
-      await this.mailerService.sendMail({
-        from: `No Reply <${process.env.EMAIL_USER}>`,
+      await this.resend.emails.send({
+        from: 'onboarding@resend.dev',
         to: email,
         subject: 'Registration',
         html: `<h1>Thank for your registration</h1>
@@ -17,8 +16,7 @@ export class EmailService {
             <a href='https://somesite.com/confirm-email?code=${code}'>complete registration</a>
           </p>`,
       });
-      const elapsed = Date.now() - startTime;
-      console.log(`✅ Email sent in ${elapsed}ms`);
+      console.log(`✅ Email sent to ${email}`);
     } catch (error) {
       console.error('Email sending failed:', error);
     }
@@ -26,8 +24,8 @@ export class EmailService {
 
   async sendPasswordRecovery(email: string, code: string): Promise<void> {
     try {
-      await this.mailerService.sendMail({
-        from: `No Reply <${process.env.EMAIL_USER}>`,
+      await this.resend.emails.send({
+        from: 'onboarding@resend.dev',
         to: email,
         subject: 'Recovery Password',
         html: `<h1>Password recovery</h1>

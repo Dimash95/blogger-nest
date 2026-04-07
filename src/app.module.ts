@@ -8,26 +8,11 @@ import { TestingModule } from './testing/testing.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MailerModule } from '@nestjs-modules/mailer';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRoot(process.env.DATABASE_URL!),
-    MailerModule.forRoot({
-      transport: {
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      },
-      defaults: {
-        from: `"No Reply" <${process.env.EMAIL_USER}>`,
-      },
-    }),
     UsersModule,
     TestingModule,
     BlogsModule,
@@ -36,11 +21,5 @@ import { MailerModule } from '@nestjs-modules/mailer';
     AuthModule,
     EmailModule,
   ],
-  // providers: [
-  //   {
-  //     provide: APP_GUARD,
-  //     useClass: ThrottlerGuard,
-  //   },
-  // ],
 })
 export class AppModule {}
